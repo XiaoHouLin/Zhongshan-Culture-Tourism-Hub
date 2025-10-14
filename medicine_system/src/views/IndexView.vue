@@ -32,7 +32,7 @@ export default {
       this.$notify({
         title: '提示',
         duration: 0,
-        message: `<span style="color: #F56C6C; font-weight: bold;">本系统为学生个人作业，与肇庆学院官方无关,请知悉</span>`,
+        message: `<span style=\"color: #F56C6C; font-weight: bold;\">本系统为学生个人作品，与任何旅行机构无关，请知悉。</span>`,
         type: 'warning',
         dangerouslyUseHTMLString: true
       });
@@ -54,9 +54,14 @@ export default {
             <el-image style="width: 80px; height: 80px" :src="rules.url" lass="border-radius" class="logo" alt="Logo"
                       @click="handleLogoClick">
             </el-image>
-            <h1 class="manu_logo">DMIS-药物管理信息系统</h1>
-            <span style="margin-left: 20px;font-size: 15px;font-weight: bold; color:#dd4643">*学生作业，非学校官方网站</span>
+            <h1 class="manu_logo">TravelHub 旅游信息管理系统</h1>
+            <span style="margin-left: 20px;font-size: 15px;font-weight: bold; color:#dd4643">*学生作业，非官方平台</span>
           </div>
+          <router-link to="/travel-experiences" class="no-underline">
+            <el-menu-item index="1" id="travel_button">
+              <router-link class="hypertext" to="/travel-experiences" active-class="active">目的地推荐</router-link>
+            </el-menu-item>
+          </router-link>
           <router-link to="/register" class="no-underline">
             <el-menu-item index="2" id="register_button">
               <router-link class="hypertext" to="/register" active-class="active">注册</router-link>
@@ -86,9 +91,9 @@ export default {
             <div class="block">
               <div class="image-with-caption">
                 <div class="caption">
-                  <h1 class="art-title">精准医疗<br>信息先行。</h1>
+                  <h1 class="art-title">目的地灵感<br>随时掌握。</h1>
                   <span>
-                <a class="art-text1">精准医疗，定制健康，以科技引领治疗新方向，让每个生命都能获得最适合的关怀与照护。</a>
+                <a class="art-text1">一站式掌握景区资讯、文创好物与行程亮点，帮助团队迅速搭建沉浸式旅游体验。</a>
               </span>
                 </div>
                 <el-image :src="backgrounds[0].svg">
@@ -107,11 +112,9 @@ export default {
             <div class="block">
               <div class="image-with-caption">
                 <div class="caption">
-                  <h1 class="art-title">轻松使用<br>面向全用户。</h1>
+                  <h1 class="art-title">全角色协同<br>乐享旅程。</h1>
                   <span>
-                <a class="art-text1">简化医疗信息管理，提升诊疗效率，安心健康，从这里开始。
-                一键管理，轻松掌握医疗信息，让健康更简单，生活更美好。
-                面向全用户设计，操作直观便捷，助您高效管理医药信息，守护家人健康。</a>
+                <a class="art-text1">支持管理员、旅行顾问与游客多角色协作，快捷处理订单、补充库存，让每一次旅程都精彩有序。</a>
               </span>
                 </div>
                 <el-image :src="backgrounds[1].svg">

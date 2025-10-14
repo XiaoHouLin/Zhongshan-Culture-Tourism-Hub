@@ -19,7 +19,7 @@ export default {
       zfb_url: require('@/assets/pay/zfb_qr.jpg'),
       weChat_url: require('@/assets/pay/wechat_qr.jpg'),
       chartData: {
-        columns: ['mtype', 'total_quantity'],
+        columns: ['category', 'totalQuantity'],
         rows: []
       },
       userInfo: {},
@@ -32,7 +32,7 @@ export default {
     this.getUserBill();
   },
   mounted() {
-    this.getDrugsClassifySales();
+    this.getProductCategoryStats();
   },
   methods: {
     async getUserInfo() {
@@ -43,13 +43,13 @@ export default {
         this.$message.error('无法获取用户数据！');
       }
     },
-    async getDrugsClassifySales() {
+    async getProductCategoryStats() {
       this.loading = true;
       try {
-        const info = await apiRear.get(`/drugsManagement/classify`);
+        const info = await apiRear.get(`/cultural-products/category-statistics`);
         this.chartData.rows = info.data.data;
       } catch (err) {
-        this.$message.error('无法获取药物分类数据！');
+        this.$message.error('无法获取文创产品分类数据！');
       } finally {
         this.loading = false;
       }
@@ -89,7 +89,7 @@ export default {
   <div>
     <!--    支付宝对话框-->
     <el-dialog
-        title="通过支付宝增值"
+        title="通过支付宝充值"
         :visible.sync="dialog_zfb"
         center
         width="30%">
@@ -100,7 +100,7 @@ export default {
 
     <!--    微信支付对话框-->
     <el-dialog
-        title="通过微信支付增值"
+        title="通过微信支付充值"
         :visible.sync="dialog_wechat"
         center
         width="30%">
@@ -168,14 +168,14 @@ export default {
           max-height="500"
           style="width: 100%">
         <el-table-column
-            prop="mno"
-            label="药物编号"
+            prop="productCode"
+            label="文创产品编号"
             sortable
             width="180">
         </el-table-column>
         <el-table-column
-            prop="mname"
-            label="药物名"
+            prop="productName"
+            label="文创产品名称"
             sortable
         />
         <el-table-column
@@ -193,9 +193,9 @@ export default {
         <p style="font-weight: bold;font-size: 20px;">💁其他信息：</p>
         <p style="font-weight: bold;margin-left: 20px">👤姓名：{{ userInfo.cname ? userInfo.cname : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">
-          👨‍⚕️经办人编号：{{ agencyName() ? agencyName() : "暂无" }}</p>
+          🏷️旅行顾问编号：{{ agencyName() ? agencyName() : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">📱电话：{{ userInfo.cphone ? userInfo.cphone : "暂无" }}</p>
-        <p style="font-weight: bold;margin-left: 20px">📍地址：{{ userInfo.address ? userInfo.address : "暂无" }}</p>
+        <p style="font-weight: bold;margin-left: 20px">📍地址：{{ userInfo.caddress ? userInfo.caddress : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">🧾备注：{{ userInfo.cremark ? userInfo.cremark : "暂无" }}</p>
       </el-card>
     </el-dialog>
@@ -203,7 +203,7 @@ export default {
     <div style="display: flex; height: 400px;">
       <el-card shadow="hover" class="border-radius" style="margin: 0 20px 20px 0; min-width: 57%">
         <p style="font-size: 45px;font-weight: bold;text-align: center;">
-          🎉 欢迎使用药物信息管理系统！ 💊
+          🎉 欢迎来到旅游文创管理中心！ 🏖️
         </p>
         <div style="display: flex; justify-content: center;">
           <el-card shadow="hover" class="border-radius" style="margin-right: 20px; background-color: #eaf3fd">
@@ -223,7 +223,7 @@ export default {
           </el-card>
         </div>
         <p class="strong" style="font-size: 20px;margin: 30px;text-align: center;color: #6a6a6e">
-          👋欢迎您，{{ userInfo.username ? userInfo.username : "drugs用户" }}
+          👋欢迎您，{{ userInfo.username ? userInfo.username : "旅人" }}
         </p>
       </el-card>
       <el-card shadow="hover" class="border-radius"
@@ -232,8 +232,8 @@ export default {
           <el-card shadow="hover" class="border-radius"
                    style="margin-bottom: 20px; display: flex; align-items: center; justify-content: center;">
             <div style="text-align: center;">
-              <span style="font-weight: bold; font-size: 100px;">🌿</span>
-              <p style="font-weight: bold; font-size: 25px;">祝君健康。</p>
+              <span style="font-weight: bold; font-size: 100px;">🧳</span>
+              <p style="font-weight: bold; font-size: 25px;">旅途愉快。</p>
             </div>
           </el-card>
           <el-card shadow="hover" class="border-radius" style="height: 60px">
@@ -275,10 +275,10 @@ export default {
     </div>
     <div>
       <el-card shadow="hover" style="height: 520px;" v-loading="loading">
-        <p class="strong" style="font-size: 20px;margin: 10px;">🔥热销商品</p>
+        <p class="strong" style="font-size: 20px;margin: 10px;">🔥热销文创</p>
         <ve-line :data="chartData" style="height: 370px;"></ve-line>
         <div style="display: block; text-align: center;">
-          <p style="font-style: italic;">但愿世间人无病，何妨架上药生尘。</p>
+          <p style="font-style: italic;">带上灵感与伴手礼，一起发现旅途的惊喜。</p>
           <p class="strong">© POWER BY @202224111240🧠...Maybe🐵</p>
         </div>
       </el-card>

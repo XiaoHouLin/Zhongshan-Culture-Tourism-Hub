@@ -467,7 +467,7 @@ export default {
               <el-form-item label="权限" :label-width="searchLabelWidth" class="strong">
                 <el-radio-group v-model="search.authority" style="padding-right: 15px">
                   <el-radio-button label="1" border>管理员</el-radio-button>
-                  <el-radio-button label="2" border>经办人</el-radio-button>
+                  <el-radio-button label="2" border>旅行顾问</el-radio-button>
                   <el-radio-button label="3" border>顾客</el-radio-button>
                 </el-radio-group>
                 <el-button size="mini" type="danger" icon="el-icon-delete" circle @click="resetAuthority"></el-button>
@@ -569,7 +569,7 @@ export default {
               <el-form-item label="权限" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-radio-group v-model="changeUser.authority" style="padding-right: 15px">
                   <el-radio-button label="1" border>管理员</el-radio-button>
-                  <el-radio-button label="2" border>经办人</el-radio-button>
+                  <el-radio-button label="2" border>旅行顾问</el-radio-button>
                   <el-radio-button label="3" border>顾客</el-radio-button>
                 </el-radio-group>
               </el-form-item>
@@ -633,8 +633,8 @@ export default {
                 日期不建议修改！这是用户注册时间⏲️。若必须修改，请按照yyyy-MM-dd格式，如：2021-01-01🗓️。</p>
               <p class="strong">8. 🔖除顾客编号，用户名，性别，权限必需以外，可填null💼，邮箱按CNO-NULL格式填写📧。</p>
               <p class="strong">9.
-                <span class="strong" :style="{color: dangerColor}">🛠️管理员和经办人也属于顾客范畴👥</span>
-                ，可使用管理员账号和经办人账号进行与顾客相同的操作，如药品购买💊。</p>
+                <span class="strong" :style="{color: dangerColor}">🛠️管理员和旅行顾问也属于顾客范畴👥</span>
+                ，可使用管理员账号和旅行顾问账号进行与顾客相同的操作，如文创选购🎁。</p>
             </div>
           </el-card>
         </div>
@@ -649,7 +649,7 @@ export default {
         <el-table-column prop="authority" label="权限" width="100">
           <template slot-scope="scope">
             <el-tag v-if="scope.row.authority === 1" type="danger" effect="dark">管理员</el-tag>
-            <el-tag v-else-if="scope.row.authority === 2" type="success" effect="dark">经办人</el-tag>
+            <el-tag v-else-if="scope.row.authority === 2" type="success" effect="dark">旅行顾问</el-tag>
             <el-tag v-else-if="scope.row.authority === 3" effect="dark">顾客</el-tag>
           </template>
         </el-table-column>

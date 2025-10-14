@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.tourism_rear.mapper.CulturalProductMapper">
+
+    <resultMap id="CulturalProductInfoMap" type="com.example.tourism_rear.pack.utils.CulturalProductInfo">
+        <id column="productCode" property="productCode"/>
+        <result column="productName" property="productName"/>
+        <result column="displayMode" property="displayMode"/>
+        <result column="highlight" property="highlight"/>
+        <result column="category" property="category"/>
+        <result column="price" property="price"/>
+        <result column="stock" property="stock"/>
+    </resultMap>
+
+    <resultMap id="CulturalProductCategoryMap" type="com.example.tourism_rear.pack.utils.CulturalProductCategory">
+        <id column="category" property="category"/>
+        <result column="totalQuantity" property="totalQuantity"/>
+    </resultMap>
+
+    <delete id="deleteProducts" parameterType="java.util.List">
+        DELETE FROM cultural_product WHERE productCode IN
+        <foreach collection="list" item="productCode" separator="," open="(" close=")">
+            #{productCode}
+        </foreach>
+    </delete>
+
+    <select id="list" resultMap="CulturalProductInfoMap">
+        SELECT productCode, productName, displayMode, highlight, category, price, stock
+        FROM cultural_product
+        <where>
+            <if test="productCode != null and productCode != ''">
+                productCode like concat('%', #{productCode}, '%')
+            </if>
+            <if test="productName != null and productName != ''">
+                AND productName like concat('%', #{productName}, '%')
+            </if>
+            <if test="displayMode != null and displayMode != ''">
+                AND displayMode like concat('%', #{displayMode}, '%')
+            </if>
+            <if test="highlight != null and highlight != ''">
+                AND highlight like concat('%', #{highlight}, '%')
+            </if>
+            <if test="category != null and category != ''">
+                AND category like concat('%', #{category}, '%')
+            </if>
+            <if test="minPrice != null and maxPrice != null">
+                AND price BETWEEN #{minPrice} AND #{maxPrice}
+            </if>
+            <if test="minStock != null and maxStock != null">
+                AND stock BETWEEN #{minStock} AND #{maxStock}
+            </if>
+        </where>
+    </select>
+
+    <update id="updateProduct">
+        UPDATE cultural_product SET
+            productCode = #{productCode},
+            productName = #{productName},
+            displayMode = #{displayMode},
+            highlight = #{highlight},
+            category = #{category},
+            price = #{price},
+            stock = #{stock}
+        WHERE productCode = #{oldProductCode}
+    </update>
+
+    <update id="updateProductStock">
+        UPDATE cultural_product
+        SET stock = stock - #{quantity}
+        WHERE productCode = #{productCode}
+    </update>
+
+    <select id="categoryStatistics" resultMap="CulturalProductCategoryMap">
+        SELECT
+            p.category,
+            SUM(od.purchaseNum) AS totalQuantity
+        FROM
+            orderDetails od
+                JOIN cultural_product p ON od.productCode = p.productCode
+        GROUP BY
+            p.category
+    </select>
+</mapper>

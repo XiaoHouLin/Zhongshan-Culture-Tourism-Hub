@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.tourism_rear.mapper.OrderMapper">
+<!--    插入订单详情-->
+    <insert id="addOrderDetails" parameterType="java.util.List">
+        INSERT INTO orderDetails(orderId, productCode, productName, purchaseNum, price) VALUES
+        <foreach collection="shoppingCart" item="order" separator=",">
+            (#{orderId},#{order.productCode},#{order.productName},#{order.purchaseNum},#{order.price})
+        </foreach>
+    </insert>
+
+<!--    根据orderId删除订单-->
+    <delete id="deleteOrder" parameterType="java.util.List">
+        DELETE FROM `order` WHERE orderId IN
+        <foreach collection="orderId" item="orderId" separator=",">
+            #{orderId}
+        </foreach>
+    </delete>
+
+    <select id="getOrderNumber" parameterType="java.util.List" resultType="integer">
+        SELECT orderId from `order` where uid = #{uid} and isCompleted = #{status}
+    </select>
+
+    <update id="setOrderStatus">
+        UPDATE `order`
+        SET isCompleted = 1,
+            email = #{order.email},
+            phone = #{order.cphone},
+            name = #{order.cname},
+            address = #{order.caddress},
+            remark = #{order.cremark},
+            agency = #{order.chooseAgency},
+            CompleteDate = #{localDateTime}
+        WHERE uid = #{order.uid}
+    </update>
+</mapper>

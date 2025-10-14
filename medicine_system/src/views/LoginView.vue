@@ -116,7 +116,7 @@ export default {
           </div>
         </div>
         <h1 style="display: flex; justify-content: center; align-content: center" class="manu_logo">
-          药物信息管理系统</h1>
+          旅游信息管理系统</h1>
         <div class="text item" style="padding: 0" @keyup.enter="submitForm">
           <el-form :model="login" status-icon :rules="rules" ref="ruleForm"
                    class="demo-ruleForm">

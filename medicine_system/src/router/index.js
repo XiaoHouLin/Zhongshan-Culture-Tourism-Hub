@@ -6,15 +6,16 @@ import UserPanel from "@/views/UserPanel/Main.vue";
 import UserInfo from "@/views/UserPanel/UserInfo.vue";
 import Home from "@/views/UserPanel/UserHome.vue";
 import UserManagement from "@/views/UserPanel/UserManagement.vue";
-import PurchaseDrugs from "@/views/UserPanel/PurchaseDrugs.vue";
-import DrugsManagement from "@/views/UserPanel/DrugsManagement.vue";
+import CulturalProductShop from "@/views/UserPanel/CulturalProductShop.vue";
+import CulturalProductManagement from "@/views/UserPanel/CulturalProductManagement.vue";
 import BillPayment from "@/views/UserPanel/billPayment.vue";
 import CompleteBill from "@/views/UserPanel/CompleteBill.vue";
+import TravelPromotion from "@/views/TravelPromotion.vue";
 import {jwtDecode} from "jwt-decode";
 
 Vue.use(VueRouter)
 
-//权限类型：1.管理员 2.经办人 3.顾客; 管理员包含经办人，顾客所有权限；其他同理。
+//权限类型：1.管理员 2.旅行顾问 3.顾客; 管理员包含旅行顾问权限，旅行顾问包含顾客权限。
 const router = new VueRouter({
     mode:'history',
     routes: [
@@ -29,6 +30,14 @@ const router = new VueRouter({
         {
             path: '/register',
             component: registerView,
+            meta: {
+                showRouterView: true,
+                requiredRole: 3
+            }
+        },
+        {
+            path: '/travel-experiences',
+            component: TravelPromotion,
             meta: {
                 showRouterView: true,
                 requiredRole: 3
@@ -70,8 +79,8 @@ const router = new VueRouter({
                     },
                 },
                 {
-                    path: '/purchaseDrugs',
-                    component: PurchaseDrugs,
+                    path: '/culturalProducts',
+                    component: CulturalProductShop,
                     meta: {
                         showRouterView: true,
                         requiresAuth: true,
@@ -79,8 +88,8 @@ const router = new VueRouter({
                     },
                 },
                 {
-                    path: '/drugsManagement',
-                    component: DrugsManagement,
+                    path: '/culturalProducts/manage',
+                    component: CulturalProductManagement,
                     meta: {
                         showRouterView: true,
                         requiresAuth: true,

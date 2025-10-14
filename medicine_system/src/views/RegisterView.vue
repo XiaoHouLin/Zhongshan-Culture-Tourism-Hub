@@ -188,7 +188,7 @@ export default {
           </div>
         </div>
         <h1 style="display: flex; justify-content: center; align-content: center" class="manu_logo">
-          药物信息管理系统</h1>
+          旅游信息管理系统</h1>
         <div class="text item" style="padding: 0">
           <el-form :model="register" status-icon :rules="rules" ref="ruleForm" class="demo-ruleForm">
             <div class="form-columns">
@@ -208,8 +208,8 @@ export default {
                 <el-form-item label="性别" prop="sex" class="strong">
                   <br>
                   <el-radio-group v-model="register.sex" @change="updateSex('ruleForm')">
-                    <el-radio label="F" border>男</el-radio>
-                    <el-radio label="M" border>女</el-radio>
+                    <el-radio label="F" border>女</el-radio>
+                    <el-radio label="M" border>男</el-radio>
                     <el-radio label="U" border disabled>其他</el-radio>
                   </el-radio-group>
                 </el-form-item>

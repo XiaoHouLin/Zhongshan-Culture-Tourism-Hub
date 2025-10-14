@@ -7,7 +7,7 @@ export default {
     return {
       shoppingCart: [],
       agency: [],
-      AllDrugsPrice: 0,
+      cartTotal: 0,
       totalAmount: 0,
       agencyNumber: 0,
       carriage: '免额外运费',
@@ -18,6 +18,7 @@ export default {
       dialogAgency: false,
       dangerColor: '#ff0000',
       userInfo: {},
+      orderId: [],
       orderInfo: {
         uid: '',
         orderId: null,
@@ -56,12 +57,12 @@ export default {
           apiRear.get(`/order/getOrderInfoBy=${this.userInfo.uid}`).then(info => {
             if (info.data.data.orderId !== null) {
               this.orderId = info.data.data.orderId;
-              this.AllDrugsPrice = info.data.data.totalPrice;
-              this.totalAmount = this.AllDrugsPrice;
+              this.cartTotal = info.data.data.totalPrice;
+              this.totalAmount = this.cartTotal;
               if (this.totalAmount > this.exemptCarriage) {
                 this.carriage = '免额外运费';
               } else {
-                this.carriage = 'CNY￥' + this.carriagePrice;
+                this.carriage = 'CNY￥' + this.carriagePrice.toFixed(2);
                 this.totalAmount += this.carriagePrice;
               }
               if (this.orderId.length !== 0) {
@@ -70,7 +71,7 @@ export default {
                 })
               } else {
                 this.$message.error('没有找到未支付的订单！');
-                this.$router.push('/purchaseDrugs');
+                this.$router.push('/culturalProducts');
               }
             }
           });
@@ -117,13 +118,13 @@ export default {
       }
     },
     goBack() {
-      this.$router.push('/purchaseDrugs');
+      this.$router.push('/culturalProducts');
     },
     getGender(sex) {
       if (sex === 'F') {
-        return '男';
+        return '女';
       } else if (sex === 'M') {
-        return '女'
+        return '男'
       } else return '未知'
     }
   }
@@ -133,13 +134,13 @@ export default {
 <template>
   <div style="height: 100%;">
     <el-dialog
-        title="选择经办人"
+        title="选择旅行顾问"
         :visible.sync="dialogAgency"
         center
         width="800px">
       <el-row :gutter="15">
         <el-col :span="8" v-for="(item, index) in agency" :key="index">
-          <!--       label从0开始会导致第一个经办人失效-->
+          <!--       label从0开始会导致第一个旅行顾问失效-->
           <el-radio
               v-model="agencyNumber"
               :label="index + 1"
@@ -147,7 +148,7 @@ export default {
               style="margin: 15px;padding: 20px; display: flex; align-items: center; height: 20%;"
               border>
             <div style="display: flex; flex-direction: column; margin-left: 10px;">
-              <span class="agency">经办人：{{ item.cname }}</span>
+              <span class="agency">旅行顾问：{{ item.cname }}</span>
               <span class="agency">年龄：{{ item.cage }}</span>
               <span class="agency">性别：{{ getGender(item.csex) }}</span>
             </div>
@@ -162,16 +163,16 @@ export default {
 
     <el-page-header @back="goBack">
       <template #content>
-        <span>选购药物</span>
+        <span>选购文创产品</span>
       </template>
     </el-page-header>
     <div style="display: flex;width: 80%; align-items: flex-start;height: calc(100% - 24px);padding:0 100px 0 100px">
       <div class="both-ends-div-container">
-        <p class="bold-content" style="margin:20px 0 5px 0">🛍️以下是你购物袋内的商品CNY￥{{ AllDrugsPrice }}。</p>
+        <p class="bold-content" style="margin:20px 0 5px 0">🛍️以下是你购物袋内的商品CNY￥{{ cartTotal.toFixed(2) }}。</p>
         <el-card shadow="always" class="border" style="width: 500px;height: calc(100% - 62px);">
           <el-table :data="shoppingCart" height="100%">
-            <el-table-column label="药物编号" prop="mno" width="100%"></el-table-column>
-            <el-table-column label="名称" prop="mname" width="120%"></el-table-column>
+            <el-table-column label="文创产品编号" prop="productCode" width="100%"></el-table-column>
+            <el-table-column label="名称" prop="productName" width="120%"></el-table-column>
             <el-table-column label="数量" prop="purchaseNum" width="120%"></el-table-column>
             <el-table-column label="单价" prop="price" width="120%"></el-table-column>
           </el-table>
@@ -209,19 +210,19 @@ export default {
           <div style="width: 285px">
             <p class="bold-content" style="font-size: 25px; margin:5px 0 5px 0;">🤚稍等一步，</p>
             <p class="strong" style="font-size: 25px;margin: 5px 0 12px 0;color: #6a6a6e">
-              👩‍⚕️让经办人帮你过过招。</p>
+              🧭让旅行顾问为你确认细节。</p>
           </div>
           <el-button type="primary"
                      style="background-color: #3f9af8;margin: 22px 0 22px 0;width: 115px;border-radius: 10px;"
                      @click="dialogAgency = true"
           >
-            选择经办人
+            选择旅行顾问
           </el-button>
         </div>
         <el-divider class="info-container"></el-divider>
         <div class="flex-container info-container info-font-container">
           <p>小计</p>
-          <span>CNY￥{{ AllDrugsPrice }}</span>
+          <span>CNY￥{{ cartTotal.toFixed(2) }}</span>
         </div>
         <div class="flex-container info-container info-font-container">
           <p>运费

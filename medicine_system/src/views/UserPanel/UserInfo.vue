@@ -405,7 +405,7 @@ export default {
           </template>
           <template>
             <el-tag v-if="userinfo.authority === 1" type="danger" effect="dark">管理员</el-tag>
-            <el-tag v-else-if="userinfo.authority === 2" type="success" effect="dark">经办人</el-tag>
+            <el-tag v-else-if="userinfo.authority === 2" type="success" effect="dark">旅行顾问</el-tag>
             <el-tag v-else-if="userinfo.authority === 3" effect="dark">顾客</el-tag>
           </template>
         </el-descriptions-item>

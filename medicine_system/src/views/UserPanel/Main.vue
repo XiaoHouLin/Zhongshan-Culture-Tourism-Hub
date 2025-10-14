@@ -47,10 +47,10 @@ export default {
       // 根据路由变化设置当前激活的菜单项
       const routeToMenu = {
         '/home': '1',
-        '/purchaseDrugs': '2',
+        '/culturalProducts': '2',
         '/userInfo': '3',
         '/userManagement': '4',
-        '/drugsManagement': '5',
+        '/culturalProducts/manage': '5',
         '/indexView': '6'
       };
       this.activeIndex = routeToMenu[to.path] || '1';
@@ -90,7 +90,7 @@ export default {
               <h1 style="color: white">{{ username }}</h1>
               <template>
                 <el-tag v-if="authority === 1" type="danger" effect="dark">管理员</el-tag>
-                <el-tag v-else-if="authority === 2" type="success" effect="dark">经办人</el-tag>
+                <el-tag v-else-if="authority === 2" type="success" effect="dark">旅行顾问</el-tag>
                 <el-tag v-else-if="authority === 3" effect="dark">顾客</el-tag>
               </template>
             </div>
@@ -102,10 +102,10 @@ export default {
             <span slot="title" class="strong">首页</span>
           </el-menu-item>
         </router-link>
-        <router-link to="/purchaseDrugs" class="no-underline">
+        <router-link to="/culturalProducts" class="no-underline">
           <el-menu-item index="2" @click="setActiveIndex('2')">
             <i class="el-icon-shopping-cart-2 icon-color"></i>
-            <span slot="title" class="strong">药物购买</span>
+            <span slot="title" class="strong">文创选购</span>
           </el-menu-item>
         </router-link>
         <router-link to="/userInfo" class="no-underline">
@@ -123,10 +123,10 @@ export default {
           </router-link>
         </div>
         <div v-if="authority === 1 || authority === 2">
-          <router-link to="/drugsManagement" class="no-underline">
+          <router-link to="/culturalProducts/manage" class="no-underline">
             <el-menu-item index="5" @click="setActiveIndex('5')">
               <i class="el-icon-notebook-1 icon-color"></i>
-              <span slot="title" class="strong">药物管理</span>
+              <span slot="title" class="strong">文创管理</span>
             </el-menu-item>
           </router-link>
         </div>
