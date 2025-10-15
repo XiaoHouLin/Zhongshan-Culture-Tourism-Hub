@@ -27,15 +27,6 @@ export default {
     /*主页标题logo跳转页面*/
     async handleLogoClick() {
       await this.$router.push('/login');
-    },
-    tip() {
-      this.$notify({
-        title: '提示',
-        duration: 0,
-        message: `<span style=\"color: #F56C6C; font-weight: bold;\">本系统为学生个人作品，与任何旅行机构无关，请知悉。</span>`,
-        type: 'warning',
-        dangerouslyUseHTMLString: true
-      });
     }
   },
   mounted() {
