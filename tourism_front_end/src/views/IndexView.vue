@@ -58,7 +58,7 @@ export default {
         title: '还在为行程筹备发愁？',
         description: '立即登录 TravelHub，将复杂的旅行筹备交给系统，团队与游客都能省心放心。'
       },
-      rules: {
+      logoInfo: {
         url: '/zqxy.jpg'
       }
     };
@@ -96,7 +96,7 @@ export default {
     <el-header class="index-header">
       <div class="header-content">
         <div class="logo-container" @click="goTo('/')">
-          <el-image class="logo" :src="rules.url" fit="cover" alt="TravelHub 标志" />
+          <el-image class="logo" :src="logoInfo.url" fit="cover" alt="TravelHub 标志" />
           <div class="logo-text">
             <h1>TravelHub 城市旅游宣传平台</h1>
             <span>*学生作业，非官方平台</span>
