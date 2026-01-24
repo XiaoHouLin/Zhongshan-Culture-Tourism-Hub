@@ -103,86 +103,142 @@ export default {
 </script>
 
 <template>
-  <!--使用背景图片  <div :style="{'background-image': 'url(' + backgroundImage + ')'}">-->
-  <div :style="{'background-color': '#c4dbfd'}">
-    <div class="login_container">
-      <el-card class="box-card">
-        <div class="demo-image center">
-          <div class="block" style="display: flex; justify-content: center; align-items: center;">
-            <el-image style="width: 100px; height: 100px"
-                      :src="url"
-                      class="border-radius"
-            ></el-image>
-          </div>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-aside">
+        <el-image :src="url" class="auth-logo" fit="cover"></el-image>
+        <h1>中山市城市文化旅游特色展示系统</h1>
+        <p>欢迎回到中山文旅平台，登录后管理行程与文创订单。</p>
+        <div class="auth-tags">
+          <span>孙中山故里</span>
+          <span>岐江夜景</span>
+          <span>古镇灯饰</span>
         </div>
-        <h1 style="display: flex; justify-content: center; align-content: center" class="manu_logo">
-          旅游信息管理系统</h1>
-        <div class="text item" style="padding: 0" @keyup.enter="submitForm">
-          <el-form :model="login" status-icon :rules="rules" ref="ruleForm"
-                   class="demo-ruleForm">
-            <el-form-item label="用户名" prop="username" class="strong">
-              <el-input type="txt" v-model="login.username" autocomplete="off"></el-input>
-            </el-form-item>
-            <el-form-item label="密码" prop="password" class="strong">
-              <el-input type="password" v-model="login.password" autocomplete="off" show-password></el-input>
-            </el-form-item>
-            <br>
-            <el-form-item>
-              <el-button type="primary" @click="submitForm" :disabled="isLoginInvalid || isLoading" style="width: 100%;"
-                         class="strong">
-                 <span v-if="isLoading">
-                    <i class="el-icon-loading"></i> 登录中...
-                 </span>
-                 <span v-else>登录</span>
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <br>
-        <div class="align-container">
+      </div>
+      <div class="auth-form" @keyup.enter="submitForm">
+        <h2>账号登录</h2>
+        <p class="form-subtitle">游客可浏览商城，登录后解锁收藏、下单等功能。</p>
+        <el-form :model="login" status-icon :rules="rules" ref="ruleForm" class="demo-ruleForm">
+          <el-form-item label="用户名" prop="username" class="strong">
+            <el-input type="txt" v-model="login.username" autocomplete="off"></el-input>
+          </el-form-item>
+          <el-form-item label="密码" prop="password" class="strong">
+            <el-input type="password" v-model="login.password" autocomplete="off" show-password></el-input>
+          </el-form-item>
+          <el-form-item>
+            <el-button
+              type="primary"
+              @click="submitForm"
+              :disabled="isLoginInvalid || isLoading"
+              style="width: 100%;"
+              class="strong"
+            >
+              <span v-if="isLoading">
+                <i class="el-icon-loading"></i> 登录中...
+              </span>
+              <span v-else>登录</span>
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div class="form-footer">
           <router-link class="hypertext" to="/register" active-class="active">注册</router-link>
-          <el-button class="hypertext"
-                     style="padding: 0;background: none; border: none; color: #5f6165; font-size: 16px"
-                     @click="()=>{this.$message.warning('请联系管理员！')}">忘记密码?</el-button>
+          <el-button
+            class="hypertext"
+            style="padding: 0;background: none; border: none; font-size: 14px"
+            @click="()=>{this.$message.warning('请联系管理员！')}"
+          >忘记密码?</el-button>
         </div>
-      </el-card>
+      </div>
     </div>
   </div>
 </template>
 
 <style>
-.login_container {
+.auth-page {
+  min-height: 100vh;
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  height: 100vh; /* 确保容器高度占满视窗 */
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 15%, rgba(199, 90, 49, 0.15), transparent 50%),
+    linear-gradient(135deg, #f5f7f4 0%, #eef5f7 55%, #ffffff 100%);
+  padding: 24px;
 }
 
-.align-container {
-  display: flex;
-  justify-content: space-between; /* 让两端对齐 */
+.auth-card {
+  width: 920px;
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: 0;
+  background: #ffffff;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
+  animation: fadeInUp 0.6s ease both;
 }
 
-.text {
+.auth-aside {
+  background: linear-gradient(135deg, rgba(31, 122, 109, 0.95), rgba(199, 90, 49, 0.88));
+  color: #ffffff;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+
+.auth-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+
+.auth-aside h1 {
+  font-size: 24px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.auth-aside p {
+  margin: 0;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+
+.auth-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-tags span {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.auth-form {
+  padding: 48px 40px;
+}
+
+.auth-form h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  color: #1c2c27;
+}
+
+.form-subtitle {
+  margin: 0 0 24px;
+  color: #5f6b66;
   font-size: 14px;
 }
 
-.item {
-  padding: 18px 0;
-}
-
-.box-card {
-  width: 480px;
-}
-
-.border-radius {
-  border-radius: 10px;
-}
-
-.manu_logo {
-  font-size: 26px;
-  font-family: 'PingFang SC', sans-serif;
-  color: #007BFF;
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .strong {
@@ -193,5 +249,30 @@ export default {
   color: #5f6165;
   text-decoration: none;
   font-weight: bold;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 900px) {
+  .auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .auth-aside {
+    padding: 36px 32px;
+  }
+
+  .auth-form {
+    padding: 36px 32px;
+  }
 }
 </style>

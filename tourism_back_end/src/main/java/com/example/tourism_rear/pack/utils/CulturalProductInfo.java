@@ -14,4 +14,5 @@ public class CulturalProductInfo {
     private String category;
     private Double price;
     private Integer stock;
+    private Integer sales;
 }

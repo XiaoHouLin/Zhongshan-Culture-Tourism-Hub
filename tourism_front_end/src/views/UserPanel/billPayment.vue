@@ -71,7 +71,7 @@ export default {
                 })
               } else {
                 this.$message.error('没有找到未支付的订单！');
-                this.$router.push('/culturalProducts');
+                this.$router.push('/userPanel/culturalProducts');
               }
             }
           });
@@ -118,7 +118,7 @@ export default {
       }
     },
     goBack() {
-      this.$router.push('/culturalProducts');
+      this.$router.push('/userPanel/culturalProducts');
     },
     getGender(sex) {
       if (sex === 'F') {

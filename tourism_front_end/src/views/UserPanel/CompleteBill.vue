@@ -14,7 +14,7 @@
     <el-button
         type="primary"
         icon="el-icon-goods"
-        @click="()=>{this.$router.push('/culturalProducts');}"
+        @click="()=>{this.$router.push('/userPanel/culturalProducts');}"
         round>继续逛逛
     </el-button>
     <el-button

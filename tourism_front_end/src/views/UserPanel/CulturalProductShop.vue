@@ -92,19 +92,65 @@ export default {
         {text: '✨全部', isClicked: false},
         {text: '🛒线上发售', isClicked: false},
         {text: '🏬线下限定', isClicked: false},
-      ]
+      ],
+      quickFilters: [
+        {key: 'hot', label: '🔥热销商品'},
+        {key: 'trend', label: '✨时下流行'},
+        {key: 'latest', label: '🆕最新商品'},
+        {key: 'history', label: '🧾历史购买', requiresLogin: true},
+        {key: 'recommend', label: '🎯为你推荐', requiresLogin: true}
+      ],
+      activeQuickFilter: 'hot',
+      trendSelection: [],
+      historyProductCodes: [],
+      historyCategories: []
     };
   },
   created() {
     this.loadItems();
-    this.getShoppingCart();
-    // 添加 beforeunload 事件监听器
-    window.addEventListener('beforeunload', () => this.handlePay(false), {once: true});
+    if (this.isLoggedIn) {
+      this.getShoppingCart();
+      this.loadOrderHistory();
+      // 添加 beforeunload 事件监听器
+      window.addEventListener('beforeunload', () => this.handlePay(false), {once: true});
+    }
   },
   computed: {
+    isLoggedIn() {
+      return Boolean(sessionStorage.getItem('token'));
+    },
+    filteredTableData() {
+      const data = [...this.tableData];
+      const normalizeNumber = value => {
+        const parsed = Number(value);
+        return Number.isFinite(parsed) ? parsed : 0;
+      };
+      switch (this.activeQuickFilter) {
+        case 'hot':
+          return data.sort((a, b) => normalizeNumber(b.sales) - normalizeNumber(a.sales));
+        case 'trend':
+          return data.filter(item => this.trendSelection.includes(item.productCode));
+        case 'latest':
+          return data.sort((a, b) => {
+            const aCode = normalizeNumber(String(a.productCode).replace(/\D/g, ''));
+            const bCode = normalizeNumber(String(b.productCode).replace(/\D/g, ''));
+            return bCode - aCode;
+          });
+        case 'history':
+          return data.filter(item => this.historyProductCodes.includes(item.productCode));
+        case 'recommend':
+          return data.filter(
+            item =>
+              this.historyCategories.includes(item.category) &&
+              !this.historyProductCodes.includes(item.productCode)
+          );
+        default:
+          return data;
+      }
+    },
     tableDataWithImages() {
       //index % this.images.length  顺序显示
-      return this.tableData.map((item, index) => ({
+      return this.filteredTableData.map((item, index) => ({
         ...item,
         imageUrl: this.images[(index % this.images.length)]
       }));
@@ -112,6 +158,88 @@ export default {
   },
   methods: {
     toInteger,
+    getUidFromToken() {
+      const token = sessionStorage.getItem('token');
+      return token ? jwtDecode(token).uid : null;
+    },
+    requireLogin(actionText) {
+      this.$confirm(`游客模式无法${actionText}，是否前往登录？`, '请先登录', {
+        confirmButtonText: '去登录',
+        cancelButtonText: '先逛逛',
+        type: 'warning'
+      }).then(() => {
+        this.$router.push('/login');
+      }).catch(() => {});
+    },
+    applyQuickFilter(filter) {
+      if (filter.requiresLogin && !this.isLoggedIn) {
+        this.requireLogin('查看该筛选');
+        return;
+      }
+      this.activeQuickFilter = filter.key;
+      if (filter.key === 'trend') {
+        const source = this.tableData.slice();
+        const shuffled = source.sort(() => Math.random() - 0.5);
+        this.trendSelection = shuffled.slice(0, Math.min(9, shuffled.length)).map(item => item.productCode);
+      } else {
+        this.trendSelection = [];
+      }
+    },
+    async loadOrderHistory() {
+      if (!this.isLoggedIn) {
+        return;
+      }
+      const uid = this.getUidFromToken();
+      if (!uid) {
+        return;
+      }
+      try {
+        const orderRes = await apiRear.get(`/order/getOrderByUID=${uid}`);
+        const orders = Array.isArray(orderRes.data.data) ? orderRes.data.data : [];
+        const recentOrders = orders.slice(-5);
+        const historyCodes = new Set();
+        for (const order of recentOrders) {
+          if (!order || !order.orderId) {
+            continue;
+          }
+          const detailRes = await apiRear.get(`/order/getOrderDetailByOrderId=${order.orderId}`);
+          const details = Array.isArray(detailRes.data.data) ? detailRes.data.data : [];
+          details.forEach(detail => {
+            if (detail.productCode) {
+              historyCodes.add(detail.productCode);
+            }
+          });
+        }
+        this.historyProductCodes = Array.from(historyCodes);
+        await this.loadHistoryCategories();
+      } catch (err) {
+        this.$message.error('无法获取历史购买记录');
+      }
+    },
+    async loadHistoryCategories() {
+      if (!this.historyProductCodes.length) {
+        this.historyCategories = [];
+        return;
+      }
+      const categories = new Set();
+      const codes = this.historyProductCodes.slice(0, 10);
+      for (const code of codes) {
+        const inPage = this.tableData.find(item => item.productCode === code);
+        if (inPage && inPage.category) {
+          categories.add(inPage.category);
+          continue;
+        }
+        try {
+          const res = await apiRear.get(`/cultural-products/${code}`);
+          if (res.data && res.data.data && res.data.data.category) {
+            categories.add(res.data.data.category);
+          }
+        } catch (error) {
+          // ignore single product fetch failures
+        }
+      }
+      this.historyCategories = Array.from(categories);
+    },
     findMaxPrice() {
       // 初始值设为负无穷大，确保任何价格都能被比较
       return this.tableData.reduce((max, item) => {
@@ -126,6 +254,10 @@ export default {
       this.$set(this.search, field, positiveInteger);
     },
     async handlePay(isButtonTriggered = false) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('结算');
+        return;
+      }
       if (this.shoppingCart.length <= 0) {
         this.$message.error('购物车为空！');
         return;
@@ -205,6 +337,15 @@ export default {
         this.total = res.data.data.total;
         this.maxPrice = this.findMaxPrice();
         this.priceRange = [0, this.maxPrice];
+        if (this.activeQuickFilter === 'trend') {
+          const shuffled = this.tableData.slice().sort(() => Math.random() - 0.5);
+          this.trendSelection = shuffled.slice(0, Math.min(9, shuffled.length)).map(item => item.productCode);
+        } else {
+          this.trendSelection = [];
+        }
+        if (this.isLoggedIn && !this.historyCategories.length) {
+          this.loadHistoryCategories();
+        }
       } catch (err) {
         this.$message.error('未知错误,请重新登录后再试');
       } finally {
@@ -212,14 +353,25 @@ export default {
       }
     },
     async getUserInfo() {
+      if (!this.isLoggedIn) {
+        return;
+      }
       try {
-        const info = await apiRear.get(`/userInfo/${jwtDecode(sessionStorage.getItem('token') || '').uid}`);
+        const token = sessionStorage.getItem('token');
+        const uid = token ? jwtDecode(token).uid : null;
+        if (!uid) {
+          return;
+        }
+        const info = await apiRear.get(`/userInfo/${uid}`);
         this.userInfo = info.data.data;
       } catch (err) {
         this.$message.error('无法获取用户数据！');
       }
     },
     async getShoppingCart() {
+      if (!this.isLoggedIn) {
+        return;
+      }
       try {
         await this.getUserInfo(); //确保用户信息已加载
         if (this.userInfo.uid !== undefined) {
@@ -242,7 +394,15 @@ export default {
       this.search.page = newPage;
       this.loadItems();
     },
-    handleAddToCart(index) {
+    handleAddToCart(item) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('加入购物车');
+        return;
+      }
+      const index = this.tableData.findIndex(product => product.productCode === item.productCode);
+      if (index < 0) {
+        return;
+      }
       this.purchaseDialogVisible = true;
       this.purchaseQuantity = 0;
       this.currentProductTotal = '0.00';
@@ -250,6 +410,10 @@ export default {
       this.productIndex = index;
     },
     purchaseHandle() {
+      if (!this.isLoggedIn) {
+        this.requireLogin('下单');
+        return;
+      }
       const purchasedProducts = this.shoppingCart.find(item => item.productCode === this.tableData[this.productIndex].productCode);
       if (purchasedProducts != null) {
         if (this.tableData[this.productIndex].stock - purchasedProducts.purchaseNum - this.purchaseQuantity < 0) {
@@ -283,6 +447,10 @@ export default {
       }, 0);
     },
     removeFromCart(productCode, productName) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('管理购物车');
+        return;
+      }
       this.$confirm('此操作会删除所有的『' + productName + '』，确定吗？', '提示', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -297,6 +465,10 @@ export default {
       });
     },
     editCartItem(productCode, productName, purchaseNum) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('管理购物车');
+        return;
+      }
       this.$prompt('请输入『' + productName + '』数量', '修改', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
@@ -326,6 +498,13 @@ export default {
           message: '取消修改'
         });
       });
+    },
+    handleOpenCart() {
+      if (!this.isLoggedIn) {
+        this.requireLogin('查看购物车');
+        return;
+      }
+      this.shoppingDrawer = true;
     }
   },
 };
@@ -335,8 +514,8 @@ export default {
 <template>
   <el-container>
     <el-main>
-      <div style="display: flex;justify-content: space-between;max-height: 105px;">
-        <el-card shadow="hover" class="border" style="width: 550px;">
+      <div class="shop-top-grid">
+        <el-card shadow="hover" class="border shop-top-card shop-top-card--search">
           <p class="strong" style="font-size: 130%;margin: 10px">🔍查询</p>
           <div style="display: flex;margin: 10px;">
             <div style="width: 90%;">
@@ -357,17 +536,19 @@ export default {
             </el-button>
           </div>
         </el-card>
-        <el-card shadow="hover" class="border" style="width: 450px;">
+        <el-card v-if="isLoggedIn" shadow="hover" class="border shop-top-card">
           <p class="strong" style="font-size: 130%;margin: 10px">😣旅行偏好</p>
           <p class="strong symptom-text" style="font-size: 13px;margin: 10px;text-align: center;">
             {{ userInfo.csymptom ? userInfo.csymptom : "暂无数据" }}
           </p>
         </el-card>
-        <el-card shadow="hover" class="border"
-                 style="width: 25%;
-                        display: flex;
-                        flex-direction: column;
-                        justify-content: center;">
+        <el-card v-else shadow="hover" class="border shop-top-card">
+          <p class="strong" style="font-size: 130%;margin: 10px">👋游客模式</p>
+          <p class="strong symptom-text" style="font-size: 13px;margin: 10px;text-align: center;">
+            登录后可记录偏好与购买。
+          </p>
+        </el-card>
+        <el-card v-if="isLoggedIn" shadow="hover" class="border shop-top-card shop-top-card--balance">
           <p class="strong" style="font-size: 130%;margin: 10px;text-align: left;">💴余额</p>
           <p class="strong" style="font-size: 200%;margin: 10px;text-align: center;">
             ￥：{{
@@ -375,35 +556,23 @@ export default {
             }}
           </p>
         </el-card>
+        <el-card v-else shadow="hover" class="border shop-top-card shop-top-card--balance">
+          <p class="strong" style="font-size: 130%;margin: 10px;text-align: left;">💴余额</p>
+          <p class="strong" style="font-size: 95%;margin: 10px;text-align: center;">
+            登录后可查看余额与订单信息
+          </p>
+        </el-card>
       </div>
-      <div style="width: 100%;display: flex;justify-content: center;">
-        <el-row style="display: flex;justify-content: center;">
-          <el-col :span="6">
-            <el-card shadow="hover" style="width: 200px;margin: 20px" class="border">
-              <p class="strong" style="font-size: 20px;margin: 10px;padding-left:28px">🔥热销商品</p>
-            </el-card>
-          </el-col>
-          <el-col :span="6">
-            <el-card shadow="hover" style="width: 200px;margin: 20px" class="border">
-              <p class="strong" style="font-size: 20px;margin: 10px;padding-left:28px">⏰时下流行</p>
-            </el-card>
-          </el-col>
-          <el-col :span="6">
-            <el-card shadow="hover" style="width: 200px;margin: 20px" class="border">
-              <p class="strong" style="font-size: 20px;margin: 10px;padding-left:28px">🆕最新商品</p>
-            </el-card>
-          </el-col>
-          <el-col :span="6">
-            <el-card shadow="hover" style="width: 200px;margin: 20px" class="border">
-              <p class="strong" style="font-size: 20px;margin: 10px;padding-left:28px">🤩历史购买</p>
-            </el-card>
-          </el-col>
-          <el-col :span="6">
-            <el-card shadow="hover" style="width: 200px;margin: 20px" class="border">
-              <p class="strong" style="font-size: 20px;margin: 10px;padding-left:28px">🐵为你推荐</p>
-            </el-card>
-          </el-col>
-        </el-row>
+      <div class="shop-quick-filters">
+        <el-button
+          v-for="filter in quickFilters"
+          :key="filter.key"
+          round
+          :class="['quick-filter-btn', { active: activeQuickFilter === filter.key }]"
+          @click="applyQuickFilter(filter)"
+        >
+          {{ filter.label }}
+        </el-button>
       </div>
 
       <div class="infinite-scroll-container">
@@ -504,7 +673,7 @@ export default {
         </el-drawer>
         <div style="width: 100%;display: flex;overflow: hidden">
           <el-card v-loading="loading" shadow="hover" style="width: 90%;margin-right: 2%" class="border">
-            <div v-if="!loading && tableData.length === 0"
+            <div v-if="!loading && tableDataWithImages.length === 0"
                  style="display: flex; justify-content: center; align-items: center; height: 100vh;">
               <div style="text-align: center;">
                 <p style="font-size: 200px; margin: 0;">🧐</p>
@@ -517,7 +686,7 @@ export default {
               </div>
             </div>
             <el-row :gutter="15">
-              <el-col :span="8" v-for="(item, index) in tableDataWithImages" :key="index">
+              <el-col :span="8" v-for="(item, index) in tableDataWithImages" :key="item.productCode || index">
                 <el-card shadow="hover" class="card">
                   <div class="card-content">
                     <div class="image-container">
@@ -531,14 +700,14 @@ export default {
                       <p class="strong">分类：{{ item.category }}</p>
                       <div style="display: flex;justify-content: space-between; align-items: center;">
                         <p class="strong">库存：{{ item.stock }}</p>
-                        <el-tag v-if="tableData[index].stock <= 0" class="strong" type="danger" effect="dark">已售罄
+                        <el-tag v-if="item.stock <= 0" class="strong" type="danger" effect="dark">已售罄
                         </el-tag>
                       </div>
                       <div style="display: flex;justify-content: space-between">
                         <h1 class="strong" style="margin-bottom: 5px; color: #409EFF">￥ {{ item.price }}</h1>
                         <el-button type="primary" icon="el-icon-shopping-cart-2" size="mini"
-                                   :disabled="tableData[index].stock <= 0"
-                                   round style="font-size: 20px" @click="handleAddToCart(index)">
+                                   :disabled="item.stock <= 0"
+                                   round style="font-size: 20px" @click="handleAddToCart(item)">
                         </el-button>
                       </div>
                     </div>
@@ -627,7 +796,7 @@ export default {
                     margin-left: 20px;
                     color: white;
                     background-color: #409EFF"
-                  @click="shoppingDrawer = true"
+                  @click="handleOpenCart"
                   circle></el-button>
             </el-badge>
             <div style="color: #409EFF">
@@ -668,6 +837,61 @@ export default {
   margin: 0;
 }
 
+.shop-top-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr 0.8fr;
+  gap: 16px;
+  align-items: stretch;
+  margin-bottom: 22px;
+}
+
+.shop-top-card {
+  border-radius: 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 120px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.shop-top-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 18px 40px rgba(31, 56, 94, 0.12);
+}
+
+.shop-top-card--search {
+  min-height: 120px;
+}
+
+.shop-top-card--balance {
+  text-align: left;
+}
+
+.shop-quick-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin: 12px 0 26px;
+}
+
+.quick-filter-btn {
+  background: #ffffff;
+  border: 1px solid rgba(64, 158, 255, 0.25);
+  color: #1c2c27;
+  padding: 10px 18px;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.quick-filter-btn.active,
+.quick-filter-btn:hover {
+  background: rgba(64, 158, 255, 0.12);
+  border-color: rgba(64, 158, 255, 0.6);
+  color: #409EFF;
+  transform: translateY(-2px);
+}
+
 .image-container {
   flex: 0 0 70%; /* 占据卡片内容高度的70% */
   position: relative;
@@ -687,6 +911,12 @@ export default {
 .card {
   margin: 20px;
   border-radius: 20px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 18px 36px rgba(31, 56, 94, 0.12);
 }
 
 .strong {
@@ -757,5 +987,11 @@ export default {
 .shengqian-el-input {
   width: 100px;
   margin: 10px
+}
+
+@media (max-width: 1200px) {
+  .shop-top-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

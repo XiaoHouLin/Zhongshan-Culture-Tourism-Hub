@@ -175,142 +175,266 @@ export default {
 </script>
 
 <template>
-  <!--使用背景图片  <div :style="{'background-image': 'url(' + backgroundImage + ')'}">-->
-  <div :style="{'background-color': '#c4dbfd'}">
-    <div class="register_container">
-      <el-card class="register_box-card">
-        <div class="demo-image center">
-          <div class="block" style="display: flex; justify-content: center; align-items: center;">
-            <el-image style="width: 100px; height: 100px"
-                      :src="url"
-                      class="border-radius"
-            ></el-image>
-          </div>
+  <div class="auth-page">
+    <div class="auth-card">
+      <div class="auth-aside">
+        <el-image :src="url" class="auth-logo" fit="cover"></el-image>
+        <h1>中山市城市文化旅游特色展示系统</h1>
+        <p>注册后可收藏景点、管理订单与文创清单。</p>
+        <div class="auth-tags">
+          <span>岭南水乡</span>
+          <span>文创商城</span>
+          <span>慢游路线</span>
         </div>
-        <h1 style="display: flex; justify-content: center; align-content: center" class="manu_logo">
-          旅游信息管理系统</h1>
-        <div class="text item" style="padding: 0">
-          <el-form :model="register" status-icon :rules="rules" ref="ruleForm" class="demo-ruleForm">
-            <div class="form-columns">
-              <div class="left-column">
-                <el-form-item label="用户名" prop="username" class="strong">
-                  <el-input type="txt" v-model="register.username" autocomplete="off"></el-input>
-                </el-form-item>
-                <el-form-item label="密码" prop="pass" class="strong">
-                  <el-input type="password" v-model="register.pass" autocomplete="off" show-password></el-input>
-                </el-form-item>
-                <el-form-item label="确认密码" prop="checkPass" class="strong">
-                  <el-input type="password" v-model="register.checkPass" autocomplete="off" show-password></el-input>
-                </el-form-item>
-                <el-form-item label="邮箱(选填)" prop="email" class="strong">
-                  <el-input v-model="register.email"></el-input>
-                </el-form-item>
-                <el-form-item label="性别" prop="sex" class="strong">
-                  <br>
-                  <el-radio-group v-model="register.sex" @change="updateSex('ruleForm')">
-                    <el-radio label="F" border>女</el-radio>
-                    <el-radio label="M" border>男</el-radio>
-                    <el-radio label="U" border disabled>其他</el-radio>
-                  </el-radio-group>
-                </el-form-item>
-              </div>
-              <div class="right-column">
-                <el-form-item label="姓名" prop="personalName" class="strong">
-                  <el-input type="txt" v-model="register.personalName" autocomplete="off"></el-input>
-                </el-form-item>
-                <el-form-item label="年龄" prop="age" class="strong"
-                              :rules="[
-                          { required: true, message: '年龄不能为空', trigger: 'blur'},
-                          { type: 'number', message: '年龄必须为数字值'}
-                        ]"
-                >
-                  <el-input v-model.number="register.age" autocomplete="off"></el-input>
-                </el-form-item>
-                <el-form-item label="中国大陆地区" prop="chinaArea" class="strong">
-                  <br>
-                  <el-cascader size="large" :options="options" v-model="register.chinaAreaNum"
-                               @change="handleChangeAndUpdateArea" autocomplete="off">
-                  </el-cascader>
-                  <span class="note">*暂不支持其他国家/地区</span>
-                </el-form-item>
-                <el-form-item label="详细住址" prop="address" class="strong">
-                  <el-input type="txt" v-model="register.address" autocomplete="off"></el-input>
-                </el-form-item>
-                <el-form-item label="电话" prop="telephone" class="strong">
-                  <el-input type="txt" v-model="register.telephone" autocomplete="off"></el-input>
-                </el-form-item>
-              </div>
+      </div>
+      <div class="auth-form">
+        <h2>账号注册</h2>
+        <p class="form-subtitle">填写完整信息，开启你的中山城市文化旅程。</p>
+        <el-form
+          :model="register"
+          status-icon
+          :rules="rules"
+          ref="ruleForm"
+          label-position="top"
+          class="demo-ruleForm"
+        >
+          <div class="form-columns">
+            <div class="left-column">
+              <el-form-item label="用户名" prop="username" class="strong">
+                <el-input type="txt" v-model="register.username" autocomplete="off"></el-input>
+              </el-form-item>
+              <el-form-item label="密码" prop="pass" class="strong">
+                <el-input type="password" v-model="register.pass" autocomplete="off" show-password></el-input>
+              </el-form-item>
+              <el-form-item label="确认密码" prop="checkPass" class="strong">
+                <el-input type="password" v-model="register.checkPass" autocomplete="off" show-password></el-input>
+              </el-form-item>
+              <el-form-item label="邮箱(选填)" prop="email" class="strong">
+                <el-input v-model="register.email"></el-input>
+              </el-form-item>
+              <el-form-item label="性别" prop="sex" class="strong">
+                <el-radio-group v-model="register.sex" @change="updateSex('ruleForm')">
+                  <el-radio label="M" border>男</el-radio>
+                  <el-radio label="F" border>女</el-radio>
+                </el-radio-group>
+              </el-form-item>
             </div>
-            <el-form-item>
-              <el-button type="primary" @click="submitForm" style="width: 100%;"
-                         :disabled="isLoginInvalid || isLoading" class="strong">
-                <span v-if="isLoading">
-                    <i class="el-icon-loading"></i> 注册中...
-                 </span>
-                <span v-else>注册</span>
-              </el-button>
-            </el-form-item>
-          </el-form>
-        </div>
-        <br>
-        <div class="align-container">
+            <div class="right-column">
+              <el-form-item label="姓名" prop="personalName" class="strong">
+                <el-input type="txt" v-model="register.personalName" autocomplete="off"></el-input>
+              </el-form-item>
+              <el-form-item label="年龄" prop="age" class="strong"
+                            :rules="[
+                        { required: true, message: '年龄不能为空', trigger: 'blur'},
+                        { type: 'number', message: '年龄必须为数字值'}
+                      ]"
+              >
+                <el-input v-model.number="register.age" autocomplete="off"></el-input>
+              </el-form-item>
+              <el-form-item label="地址" prop="chinaArea" class="strong">
+                <el-cascader size="large" :options="options" v-model="register.chinaAreaNum"
+                             @change="handleChangeAndUpdateArea" autocomplete="off">
+                </el-cascader>
+              </el-form-item>
+              <el-form-item label="详细地址" prop="address" class="strong">
+                <el-input type="txt" v-model="register.address" autocomplete="off"></el-input>
+              </el-form-item>
+              <el-form-item label="电话" prop="telephone" class="strong">
+                <el-input type="txt" v-model="register.telephone" autocomplete="off"></el-input>
+              </el-form-item>
+            </div>
+          </div>
+          <el-form-item>
+            <el-button type="primary" @click="submitForm" style="width: 100%;"
+                       :disabled="isLoginInvalid || isLoading" class="strong">
+              <span v-if="isLoading">
+                  <i class="el-icon-loading"></i> 注册中...
+               </span>
+              <span v-else>注册</span>
+            </el-button>
+          </el-form-item>
+        </el-form>
+        <div class="form-footer">
           <router-link class="hypertext" to="/login" active-class="active">登录</router-link>
           <router-link class="hypertext" to="/" active-class="active">返回主页</router-link>
         </div>
-      </el-card>
+      </div>
     </div>
   </div>
 </template>
 
 <style>
-.register_container {
+.auth-page {
+  min-height: 100vh;
   display: flex;
-  justify-content: center; /* 水平居中 */
-  align-items: center; /* 垂直居中 */
-  min-height: 100%;
-  height: 100vh;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.15), transparent 45%),
+    radial-gradient(circle at 80% 15%, rgba(199, 90, 49, 0.15), transparent 50%),
+    linear-gradient(135deg, #f5f7f4 0%, #eef5f7 55%, #ffffff 100%);
+  padding: 24px;
 }
 
-.text {
+.auth-card {
+  width: 980px;
+  display: grid;
+  grid-template-columns: 1fr 1.4fr;
+  gap: 0;
+  background: #ffffff;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
+  animation: fadeInUp 0.6s ease both;
+}
+
+.auth-aside {
+  background: linear-gradient(135deg, rgba(31, 122, 109, 0.95), rgba(199, 90, 49, 0.88));
+  color: #ffffff;
+  padding: 48px 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  justify-content: center;
+}
+
+.auth-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+}
+
+.auth-aside h1 {
+  font-size: 24px;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.auth-aside p {
+  margin: 0;
+  opacity: 0.9;
+  line-height: 1.6;
+}
+
+.auth-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.auth-tags span {
+  background: rgba(255, 255, 255, 0.2);
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.auth-form {
+  padding: 40px 36px;
+}
+
+.auth-form h2 {
+  margin: 0 0 8px;
+  font-size: 22px;
+  color: #1c2c27;
+}
+
+.form-subtitle {
+  margin: 0 0 20px;
+  color: #5f6b66;
   font-size: 14px;
 }
 
-.item {
-  padding: 18px 0;
-}
-
-.register_box-card {
-  width: 800px;
-}
-
-.border-radius {
-  border-radius: 10px;
-}
-
-.manu_logo {
-  font-size: 26px;
-  font-family: 'PingFang SC', sans-serif;
-  color: #007BFF;
-}
-
-.strong {
-  font-weight: bold;
-}
-
 .form-columns {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  column-gap: 20px;
+  row-gap: 6px;
+  align-items: start;
 }
 
 .left-column,
 .right-column {
-  flex: 1;
-  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.demo-ruleForm .el-form-item {
+  margin-bottom: 14px;
+}
+
+.demo-ruleForm .el-form-item__label {
+  padding: 0 0 6px;
+  line-height: 1.2;
+  color: #3b4a45;
+  font-weight: 600;
+}
+
+.demo-ruleForm .el-form-item__content,
+.demo-ruleForm .el-input,
+.demo-ruleForm .el-cascader,
+.demo-ruleForm .el-radio-group {
+  width: 100%;
+}
+
+.demo-ruleForm .el-radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .note {
   font-size: 12px;
   color: #999;
   margin-left: 5px;
+}
+
+.form-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 6px;
+}
+
+.strong {
+  font-weight: bold;
+}
+
+.hypertext {
+  color: #5f6165;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1000px) {
+  .auth-card {
+    grid-template-columns: 1fr;
+  }
+
+  .form-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 680px) {
+  .auth-form {
+    padding: 32px 24px;
+  }
+
+  .auth-aside {
+    padding: 32px 24px;
+  }
 }
 </style>

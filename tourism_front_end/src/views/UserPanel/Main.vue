@@ -47,10 +47,10 @@ export default {
       // 根据路由变化设置当前激活的菜单项
       const routeToMenu = {
         '/home': '1',
-        '/culturalProducts': '2',
+        '/userPanel/culturalProducts': '2',
         '/userInfo': '3',
         '/userManagement': '4',
-        '/culturalProducts/manage': '5',
+        '/userPanel/culturalProducts/manage': '5',
         '/indexView': '6'
       };
       this.activeIndex = routeToMenu[to.path] || '1';
@@ -102,7 +102,7 @@ export default {
             <span slot="title" class="strong">首页</span>
           </el-menu-item>
         </router-link>
-        <router-link to="/culturalProducts" class="no-underline">
+        <router-link to="/userPanel/culturalProducts" class="no-underline">
           <el-menu-item index="2" @click="setActiveIndex('2')">
             <i class="el-icon-shopping-cart-2 icon-color"></i>
             <span slot="title" class="strong">文创选购</span>
@@ -123,7 +123,7 @@ export default {
           </router-link>
         </div>
         <div v-if="authority === 1 || authority === 2">
-          <router-link to="/culturalProducts/manage" class="no-underline">
+          <router-link to="/userPanel/culturalProducts/manage" class="no-underline">
             <el-menu-item index="5" @click="setActiveIndex('5')">
               <i class="el-icon-notebook-1 icon-color"></i>
               <span slot="title" class="strong">文创管理</span>

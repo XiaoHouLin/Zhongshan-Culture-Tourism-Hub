@@ -20,6 +20,13 @@ const router = new VueRouter({
     mode:'history',
     routes: [
         {
+            path: '/culturalProducts',
+            component: CulturalProductShop,
+            meta: {
+                showRouterView: true
+            }
+        },
+        {
             path: '/login',
             component: loginView,
             meta: {
@@ -79,7 +86,7 @@ const router = new VueRouter({
                     },
                 },
                 {
-                    path: '/culturalProducts',
+                    path: 'culturalProducts',
                     component: CulturalProductShop,
                     meta: {
                         showRouterView: true,
@@ -88,7 +95,7 @@ const router = new VueRouter({
                     },
                 },
                 {
-                    path: '/culturalProducts/manage',
+                    path: 'culturalProducts/manage',
                     component: CulturalProductManagement,
                     meta: {
                         showRouterView: true,
