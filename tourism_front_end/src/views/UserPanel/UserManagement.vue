@@ -388,8 +388,8 @@ export default {
 <!--TODO:1.有些需要精确查询，比如UID 2.年龄用滑块
 -->
 <template>
-  <div style="height: 100vh">
-    <el-card shadow="always" class="fixed-height-card">
+  <div class="panel-theme user-management">
+    <el-card shadow="always" class="fixed-height-card panel-card">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex;">
           <el-button type="primary" icon="el-icon-search" @click="searchForm" style="margin: 10px">查询</el-button>
@@ -467,7 +467,6 @@ export default {
               <el-form-item label="权限" :label-width="searchLabelWidth" class="strong">
                 <el-radio-group v-model="search.authority" style="padding-right: 15px">
                   <el-radio-button label="1" border>管理员</el-radio-button>
-                  <el-radio-button label="2" border>旅行顾问</el-radio-button>
                   <el-radio-button label="3" border>顾客</el-radio-button>
                 </el-radio-group>
                 <el-button size="mini" type="danger" icon="el-icon-delete" circle @click="resetAuthority"></el-button>
@@ -569,7 +568,6 @@ export default {
               <el-form-item label="权限" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-radio-group v-model="changeUser.authority" style="padding-right: 15px">
                   <el-radio-button label="1" border>管理员</el-radio-button>
-                  <el-radio-button label="2" border>旅行顾问</el-radio-button>
                   <el-radio-button label="3" border>顾客</el-radio-button>
                 </el-radio-group>
               </el-form-item>
@@ -606,7 +604,7 @@ export default {
             <el-button @click="cancelEditOrAdd">取 消</el-button>
             <el-button type="primary" @click="confirmClickHandler" :disabled="isEditInvalid">确 定</el-button>
           </div>
-          <el-card shadow="hover" style="border-radius: 30px;background-color: #d7eafd">
+          <el-card shadow="hover" class="tips-card">
             <div style="text-align: left">
               <h2>tips:</h2>
               <h3 class="strong" :style="{color: dangerColor}"
@@ -633,8 +631,8 @@ export default {
                 日期不建议修改！这是用户注册时间⏲️。若必须修改，请按照yyyy-MM-dd格式，如：2021-01-01🗓️。</p>
               <p class="strong">8. 🔖除顾客编号，用户名，性别，权限必需以外，可填null💼，邮箱按CNO-NULL格式填写📧。</p>
               <p class="strong">9.
-                <span class="strong" :style="{color: dangerColor}">🛠️管理员和旅行顾问也属于顾客范畴👥</span>
-                ，可使用管理员账号和旅行顾问账号进行与顾客相同的操作，如文创选购🎁。</p>
+                <span class="strong" :style="{color: dangerColor}">🛠️管理员也属于顾客范畴👥</span>
+                ，可使用管理员账号进行与顾客相同的操作，如文创选购🎁。</p>
             </div>
           </el-card>
         </div>
@@ -649,8 +647,7 @@ export default {
         <el-table-column prop="authority" label="权限" width="100">
           <template slot-scope="scope">
             <el-tag v-if="scope.row.authority === 1" type="danger" effect="dark">管理员</el-tag>
-            <el-tag v-else-if="scope.row.authority === 2" type="success" effect="dark">旅行顾问</el-tag>
-            <el-tag v-else-if="scope.row.authority === 3" effect="dark">顾客</el-tag>
+            <el-tag v-else effect="dark">顾客</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
@@ -732,5 +729,68 @@ export default {
 
 .marginWidth {
   margin-bottom: 30px;
+}
+
+.panel-theme {
+  --font-display: 'STZhongsong', 'FangSong', 'Songti SC', 'STSong', serif;
+  --font-body: 'HarmonyOS Sans SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ink: #1c2c27;
+  --ink-soft: #40534c;
+  --accent: #c75a31;
+  --teal: #1f7a6d;
+  --paper: #ffffff;
+  --shadow-soft: 0 20px 45px rgba(25, 45, 40, 0.12);
+  min-height: 100%;
+  padding: 8px 6px 28px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(199, 90, 49, 0.12), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(31, 122, 109, 0.05) 0, rgba(31, 122, 109, 0.05) 1px, transparent 1px, transparent 120px),
+    repeating-linear-gradient(0deg, rgba(31, 122, 109, 0.04) 0, rgba(31, 122, 109, 0.04) 1px, transparent 1px, transparent 120px),
+    linear-gradient(180deg, #f9f4ec 0%, #f5f9fb 55%, #ffffff 100%);
+}
+
+.panel-card {
+  border-radius: 24px !important;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: var(--shadow-soft);
+  background: var(--paper) !important;
+  color: var(--ink);
+}
+
+.tips-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.16);
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.panel-theme ::v-deep .el-card {
+  border: 1px solid rgba(31, 122, 109, 0.1);
+}
+
+.panel-theme ::v-deep .el-card__body {
+  color: var(--ink);
+}
+
+.panel-theme ::v-deep .el-dialog {
+  border-radius: 18px;
+}
+
+.panel-theme ::v-deep .el-dialog__body {
+  padding-top: 16px;
+}
+
+.panel-theme ::v-deep .el-table {
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.panel-theme ::v-deep .el-table th {
+  background: rgba(31, 122, 109, 0.08);
+  color: var(--ink);
 }
 </style>

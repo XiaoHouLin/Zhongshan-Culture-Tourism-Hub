@@ -132,6 +132,11 @@ export default {
           return data.filter(item => this.trendSelection.includes(item.productCode));
         case 'latest':
           return data.sort((a, b) => {
+            const aTime = a.createTime ? new Date(a.createTime).getTime() : 0;
+            const bTime = b.createTime ? new Date(b.createTime).getTime() : 0;
+            if (aTime !== bTime) {
+              return bTime - aTime;
+            }
             const aCode = normalizeNumber(String(a.productCode).replace(/\D/g, ''));
             const bCode = normalizeNumber(String(b.productCode).replace(/\D/g, ''));
             return bCode - aCode;
@@ -512,8 +517,8 @@ export default {
 
 
 <template>
-  <el-container>
-    <el-main>
+  <el-container class="shop-layout">
+    <el-main class="shop-main">
       <div class="shop-top-grid">
         <el-card shadow="hover" class="border shop-top-card shop-top-card--search">
           <p class="strong" style="font-size: 130%;margin: 10px">🔍查询</p>
@@ -522,13 +527,13 @@ export default {
               <el-input placeholder="请输入文创产品名" v-model="search.productName" class="input-with-select">
                 <el-button slot="append"
                            icon="el-icon-search"
-                           style="background-color: #409EFF; color: white"
+                           class="search-button"
                            @click="handle_loadItems"
                 ></el-button>
               </el-input>
             </div>
             <el-button type="primary"
-                       style="margin-left: 10px;border-radius: 15px"
+                       class="refresh-button"
                        @click="()=>{handle_loadItems();this.search.productName = '';}"
                        size="mini"
             >
@@ -837,6 +842,57 @@ export default {
   margin: 0;
 }
 
+.shop-layout {
+  --font-display: 'STZhongsong', 'FangSong', 'Songti SC', 'STSong', serif;
+  --font-body: 'HarmonyOS Sans SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ink: #1c2c27;
+  --ink-soft: #40534c;
+  --accent: #c75a31;
+  --accent-strong: #a2472b;
+  --teal: #1f7a6d;
+  --gold: #d4a14a;
+  --mist: #f8f3ea;
+  --sky: #e7f3f7;
+  --paper: #ffffff;
+  --shadow-soft: 0 20px 45px rgba(25, 45, 40, 0.12);
+  min-height: 100vh;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(199, 90, 49, 0.12), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(31, 122, 109, 0.05) 0, rgba(31, 122, 109, 0.05) 1px, transparent 1px, transparent 120px),
+    repeating-linear-gradient(0deg, rgba(31, 122, 109, 0.04) 0, rgba(31, 122, 109, 0.04) 1px, transparent 1px, transparent 120px),
+    linear-gradient(180deg, #f9f4ec 0%, #f5f9fb 50%, #ffffff 100%);
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+.shop-main {
+  padding: 24px 32px 90px;
+  background: transparent;
+}
+
+.search-button {
+  background-color: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+.refresh-button {
+  margin-left: 10px;
+  border-radius: 15px;
+}
+
+.shop-layout :deep(.el-button--primary) {
+  background-color: var(--accent);
+  border-color: var(--accent);
+}
+
+.shop-layout :deep(.el-button--primary:hover),
+.shop-layout :deep(.el-button--primary:focus) {
+  background-color: var(--accent-strong);
+  border-color: var(--accent-strong);
+}
+
 .shop-top-grid {
   display: grid;
   grid-template-columns: 1.4fr 1fr 0.8fr;
@@ -877,8 +933,8 @@ export default {
 
 .quick-filter-btn {
   background: #ffffff;
-  border: 1px solid rgba(64, 158, 255, 0.25);
-  color: #1c2c27;
+  border: 1px solid rgba(199, 90, 49, 0.25);
+  color: var(--ink);
   padding: 10px 18px;
   font-weight: 600;
   transition: all 0.2s ease;
@@ -886,9 +942,9 @@ export default {
 
 .quick-filter-btn.active,
 .quick-filter-btn:hover {
-  background: rgba(64, 158, 255, 0.12);
-  border-color: rgba(64, 158, 255, 0.6);
-  color: #409EFF;
+  background: rgba(199, 90, 49, 0.12);
+  border-color: rgba(199, 90, 49, 0.6);
+  color: var(--accent);
   transform: translateY(-2px);
 }
 
@@ -934,10 +990,11 @@ export default {
   bottom: 0;
   left: 200px;
   width: calc(100% - 200px);
-  background-color: white;
+  background: rgba(255, 255, 255, 0.92);
   justify-content: space-between;
   padding: 10px 0;
   box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
+  backdrop-filter: blur(6px);
 }
 
 .card-image-container {
@@ -959,7 +1016,10 @@ export default {
 }
 
 .border {
-  border-radius: 10px;
+  border-radius: 18px;
+  background: var(--paper);
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: var(--shadow-soft);
 }
 
 .classify {
@@ -968,10 +1028,14 @@ export default {
   margin: 10px;
   width: 90%;
   border-radius: 15px;
+  background: rgba(31, 122, 109, 0.08);
+  color: var(--ink);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
 .clicked {
-  background-color: #d7eafd; /* 点击后的背景颜色 */
+  background-color: rgba(199, 90, 49, 0.16); /* 点击后的背景颜色 */
+  color: var(--accent);
 }
 
 .symptom-text {
@@ -987,6 +1051,23 @@ export default {
 .shengqian-el-input {
   width: 100px;
   margin: 10px
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.shop-top-card,
+.shop-quick-filters,
+.card {
+  animation: fadeUp 0.6s ease both;
 }
 
 @media (max-width: 1200px) {

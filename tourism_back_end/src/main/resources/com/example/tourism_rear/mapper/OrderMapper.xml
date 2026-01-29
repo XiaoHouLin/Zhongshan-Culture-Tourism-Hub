@@ -31,7 +31,6 @@
             name = #{order.cname},
             address = #{order.caddress},
             remark = #{order.cremark},
-            agency = #{order.chooseAgency},
             CompleteDate = #{localDateTime}
         WHERE uid = #{order.uid}
     </update>

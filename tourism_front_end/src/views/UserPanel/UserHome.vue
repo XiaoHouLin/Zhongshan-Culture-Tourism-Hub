@@ -74,19 +74,12 @@ export default {
         this.$message.error('无法获取订单详情！');
       }
     },
-    agencyName() {
-      const order = this.orders.find(order => order.orderId === this.chooseOrderId);
-      if (order) {
-        return order.agency;
-      } else {
-        return '暂无';
-      }
-    }
+    // 预留：可在此扩展用户相关信息处理
   }
 }
 </script>
 <template>
-  <div>
+  <div class="panel-theme user-home">
     <!--    支付宝对话框-->
     <el-dialog
         title="通过支付宝充值"
@@ -189,34 +182,32 @@ export default {
             sortable
         />
       </el-table>
-      <el-card shadow="hover" style="margin-top: 20px; border-radius: 30px;background-color: #d7eafd">
+      <el-card shadow="hover" class="tips-card">
         <p style="font-weight: bold;font-size: 20px;">💁其他信息：</p>
         <p style="font-weight: bold;margin-left: 20px">👤姓名：{{ userInfo.cname ? userInfo.cname : "暂无" }}</p>
-        <p style="font-weight: bold;margin-left: 20px">
-          🏷️旅行顾问编号：{{ agencyName() ? agencyName() : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">📱电话：{{ userInfo.cphone ? userInfo.cphone : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">📍地址：{{ userInfo.caddress ? userInfo.caddress : "暂无" }}</p>
         <p style="font-weight: bold;margin-left: 20px">🧾备注：{{ userInfo.cremark ? userInfo.cremark : "暂无" }}</p>
       </el-card>
     </el-dialog>
 
-    <div style="display: flex; height: 400px;">
-      <el-card shadow="hover" class="border-radius" style="margin: 0 20px 20px 0; min-width: 57%">
+    <div class="home-grid">
+      <el-card shadow="hover" class="border-radius panel-card panel-card--hero" style="margin: 0 20px 20px 0; min-width: 57%">
         <p style="font-size: 45px;font-weight: bold;text-align: center;">
           🎉 欢迎来到旅游文创管理中心！ 🏖️
         </p>
         <div style="display: flex; justify-content: center;">
-          <el-card shadow="hover" class="border-radius" style="margin-right: 20px; background-color: #eaf3fd">
+          <el-card shadow="hover" class="border-radius panel-card panel-card--muted" style="margin-right: 20px;">
             <span style="font-weight: bold; font-size: 25px;">
               ✨ 简单。
             </span>
           </el-card>
-          <el-card shadow="hover" class="border-radius" style="margin-right: 20px; background-color: #eaf3fd">
+          <el-card shadow="hover" class="border-radius panel-card panel-card--muted" style="margin-right: 20px;">
             <span style="font-weight: bold; font-size: 25px;">
               ✨ 快捷。
             </span>
           </el-card>
-          <el-card shadow="hover" class="border-radius" style="margin-right: 20px; background-color: #eaf3fd">
+          <el-card shadow="hover" class="border-radius panel-card panel-card--muted" style="margin-right: 20px;">
             <span style="font-weight: bold; font-size: 25px;">
               ✨ 高效。
             </span>
@@ -227,16 +218,16 @@ export default {
         </p>
       </el-card>
       <el-card shadow="hover" class="border-radius"
-               style="margin: 0 20px 20px 0;width: 280px; background-color: #eaf3fd">
+               style="margin: 0 20px 20px 0;width: 280px;">
         <div style="display: block;">
-          <el-card shadow="hover" class="border-radius"
+          <el-card shadow="hover" class="border-radius panel-card"
                    style="margin-bottom: 20px; display: flex; align-items: center; justify-content: center;">
             <div style="text-align: center;">
               <span style="font-weight: bold; font-size: 100px;">🧳</span>
               <p style="font-weight: bold; font-size: 25px;">旅途愉快。</p>
             </div>
           </el-card>
-          <el-card shadow="hover" class="border-radius" style="height: 60px">
+          <el-card shadow="hover" class="border-radius panel-card" style="height: 60px">
             <el-button shadow="hover"
                        class="border-radius"
                        style="margin: 0; padding: 0; height: 100%; width: 100%; border: none;"
@@ -248,14 +239,14 @@ export default {
         </div>
       </el-card>
       <el-card shadow="hover" class="border-radius"
-               style="margin-bottom: 20px;min-width: 300px; background-color: #eaf3fd">
+               style="margin-bottom: 20px;min-width: 300px;">
         <div style="display: block;">
-          <el-card shadow="hover" class="border-radius" style="margin-bottom: 20px;">
+          <el-card shadow="hover" class="border-radius panel-card" style="margin-bottom: 20px;">
             <span style="font-weight: bold; font-size: 20px;">💰余额：￥{{
                 userInfo.balance !== undefined && userInfo.balance !== null ? (userInfo.balance === 0 ? '0.00' : userInfo.balance.toFixed(2)) : "unknown"
               }}</span>
           </el-card>
-          <el-card shadow="hover" class="border-radius" style="display: block;">
+          <el-card shadow="hover" class="border-radius panel-card" style="display: block;">
             <p style="font-weight: bold; font-size: 20px;margin: 0 0 25px 0">💴余额增值：</p>
             <el-button shadow="hover"
                        class="border-radius custom-zfb"
@@ -274,7 +265,7 @@ export default {
       </el-card>
     </div>
     <div>
-      <el-card shadow="hover" style="height: 520px;" v-loading="loading">
+      <el-card shadow="hover" class="panel-card chart-card" style="height: 520px;" v-loading="loading">
         <p class="strong" style="font-size: 20px;margin: 10px;">🔥热销文创</p>
         <ve-line :data="chartData" style="height: 370px;"></ve-line>
         <div style="display: block; text-align: center;">
@@ -301,5 +292,96 @@ export default {
   background-image: url("https://td.cdn-go.cn/enterprise_payment/v0.1.2/logo.svg");
   background-size: cover;
   color: white;
+}
+
+.panel-theme {
+  --font-display: 'STZhongsong', 'FangSong', 'Songti SC', 'STSong', serif;
+  --font-body: 'HarmonyOS Sans SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ink: #1c2c27;
+  --ink-soft: #40534c;
+  --accent: #c75a31;
+  --teal: #1f7a6d;
+  --paper: #ffffff;
+  --shadow-soft: 0 20px 45px rgba(25, 45, 40, 0.12);
+  min-height: 100%;
+  padding: 8px 6px 28px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(199, 90, 49, 0.12), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(31, 122, 109, 0.05) 0, rgba(31, 122, 109, 0.05) 1px, transparent 1px, transparent 120px),
+    repeating-linear-gradient(0deg, rgba(31, 122, 109, 0.04) 0, rgba(31, 122, 109, 0.04) 1px, transparent 1px, transparent 120px),
+    linear-gradient(180deg, #f9f4ec 0%, #f5f9fb 55%, #ffffff 100%);
+}
+
+.home-grid {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  min-height: 400px;
+}
+
+.panel-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: var(--shadow-soft);
+  background: var(--paper) !important;
+  color: var(--ink);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.panel-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 26px 60px rgba(25, 45, 40, 0.16);
+}
+
+.panel-card--muted {
+  background: rgba(255, 255, 255, 0.9) !important;
+}
+
+.panel-card--hero {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.tips-card {
+  margin-top: 20px;
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.16);
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.chart-card {
+  border-radius: 24px !important;
+}
+
+.panel-theme ::v-deep .el-card {
+  border: 1px solid rgba(31, 122, 109, 0.1);
+}
+
+.panel-theme ::v-deep .el-card__body {
+  color: var(--ink);
+}
+
+.panel-theme ::v-deep .el-dialog {
+  border-radius: 18px;
+}
+
+.panel-theme ::v-deep .el-dialog__body {
+  padding-top: 16px;
+}
+
+.panel-theme ::v-deep .el-table {
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.panel-theme ::v-deep .el-table th {
+  background: rgba(31, 122, 109, 0.08);
+  color: var(--ink);
 }
 </style>

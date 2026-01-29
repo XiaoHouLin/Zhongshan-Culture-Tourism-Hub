@@ -110,9 +110,4 @@ public interface UserMapper {
     @Select("select balance from client where uid=#{uid}")
     Double getBalance(Integer uid);
 
-    /**
-     * 获取经办人信息（名字，年龄，性别）
-     */
-    @Select("select cno,cname,cage,csex from client,user where authority = 2 and client.uid = user.uid")
-    List<UserInfo> getAgency();
 }

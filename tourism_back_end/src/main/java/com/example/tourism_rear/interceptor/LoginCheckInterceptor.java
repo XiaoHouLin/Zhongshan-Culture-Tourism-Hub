@@ -30,6 +30,9 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             //放行
             return true;
         }
+        if (HttpMethod.GET.matches(request.getMethod()) && url.startsWith("/cultural-products")) {
+            return true;
+        }
         String jwt = request.getHeader("authorization");
         if (jwt != null) {
             if (jwt.contains("Bearer ")) {

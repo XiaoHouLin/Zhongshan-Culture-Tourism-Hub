@@ -183,14 +183,18 @@ export default {
         process.env.VUE_APP_AMAP_SECURITY_CODE ||
         'c21177cb56c8467218eecf96a7bbcca2',
       mapLoading: true,
+      mapBaseReady: false,
       mapLoadTimer: null,
       mapInstance: null,
       mapPolygons: [],
       mapLabels: [],
       mapDistrictExplorer: null,
       mapDistrictLayer: null,
+      townPolygonGroups: Object.create(null),
+      hoveredTownName: '',
       mapReady: false,
       mapError: '',
+      geojsonUrl: '/geojson/zhongshan_towns.json',
       defaultTownImage: '/towns/zhongshan-default.jpg',
       activeTown: {
         name: '中山市',
@@ -360,11 +364,12 @@ export default {
       this.mapLoading = true;
       this.mapError = '';
       this.mapReady = false;
+      this.mapBaseReady = false;
       if (this.mapLoadTimer) {
         clearTimeout(this.mapLoadTimer);
       }
       this.mapLoadTimer = setTimeout(() => {
-        if (!this.mapReady && !this.mapError) {
+        if (!this.mapBaseReady && !this.mapError) {
           this.mapError = '地图加载超时，请检查 Key、安全密钥或网络。';
           this.mapLoading = false;
         }
@@ -475,18 +480,25 @@ export default {
         center: [113.391, 22.521],
         viewMode: '2D',
         zooms: [9, 13],
-        mapStyle: 'amap://styles/normal'
+        mapStyle: 'amap://styles/whitesmoke'
       });
       this.mapInstance = map;
+      this.mapBaseReady = true;
+      if (this.mapLoadTimer) {
+        clearTimeout(this.mapLoadTimer);
+        this.mapLoadTimer = null;
+      }
       this.mapPolygons = [];
+      this.townPolygonGroups = Object.create(null);
+      this.hoveredTownName = '';
       if (AMap.DistrictLayer && AMap.DistrictLayer.Province) {
         const layer = new AMap.DistrictLayer.Province({
           adcode: ['440000'],
           depth: 2,
           styles: {
             fill: 'rgba(0,0,0,0)',
-            'city-stroke': 'rgba(31, 122, 109, 0.25)',
-            'province-stroke': 'rgba(199, 90, 49, 0.35)'
+            'city-stroke': 'rgba(31, 122, 109, 0.18)',
+            'province-stroke': 'rgba(199, 90, 49, 0.25)'
           }
         });
         layer.setMap(map);
@@ -500,9 +512,7 @@ export default {
     },
     renderDistrictExplorer(AMapUI, AMap, map) {
       if (!AMapUI || !AMapUI.loadUI) {
-        this.renderCityOutline(AMap, map);
-        this.mapError = '未加载高德行政区插件，无法显示镇区轮廓。';
-        this.mapLoading = false;
+        this.renderTownPolygonsBySearch(AMap, map);
         return;
       }
       AMapUI.loadUI(['geo/DistrictExplorer'], DistrictExplorer => {
@@ -525,31 +535,70 @@ export default {
           districtExplorer.clearFeaturePolygons();
           const subFeatures = areaNode.getSubFeatures();
           if (!subFeatures || !subFeatures.length) {
-            this.renderCityOutline(AMap, map);
-            this.mapError = '暂未获取镇区边界数据，可导入本地 GeoJSON 作为补充。';
-            this.mapLoading = false;
+            this.renderTownPolygonsBySearch(AMap, map);
             return;
           }
+          const distinctNames = new Set(
+            subFeatures
+              .map(feature => feature && feature.properties && feature.properties.name)
+              .filter(Boolean)
+              .map(name => this.normalizeTownName(name))
+          );
+          if (distinctNames.size <= 1) {
+            this.renderTownPolygonsBySearch(AMap, map);
+            return;
+          }
+          const townBaseStyle = this.getTownBaseStyle();
+          const rootStyle = this.getRootStyle();
           const subPolygons = districtExplorer.renderSubFeatures(areaNode, {
             cursor: 'pointer',
             bubble: true,
-            strokeColor: '#1f7a6d',
-            strokeWeight: 1.2,
-            fillColor: '#1f7a6d',
-            fillOpacity: 0.22
+            strokeColor: townBaseStyle.strokeColor,
+            strokeWeight: townBaseStyle.strokeWeight,
+            strokeOpacity: townBaseStyle.strokeOpacity,
+            fillColor: townBaseStyle.fillColor,
+            fillOpacity: townBaseStyle.fillOpacity,
+            zIndex: townBaseStyle.zIndex
           });
           const parentPolygon = districtExplorer.renderParentFeature(areaNode, {
-            strokeColor: '#c75a31',
-            strokeWeight: 2.6,
-            fillColor: 'rgba(199, 90, 49, 0.06)',
-            fillOpacity: 0.12
+            strokeColor: rootStyle.strokeColor,
+            strokeWeight: rootStyle.strokeWeight,
+            strokeOpacity: rootStyle.strokeOpacity,
+            fillColor: rootStyle.fillColor,
+            fillOpacity: rootStyle.fillOpacity,
+            zIndex: rootStyle.zIndex
           });
           this.mapPolygons = [];
+          this.townPolygonGroups = Object.create(null);
+          this.hoveredTownName = '';
           if (Array.isArray(subPolygons)) {
             this.mapPolygons.push(...subPolygons);
           }
           if (parentPolygon) {
             this.mapPolygons.push(parentPolygon);
+            if (parentPolygon.setOptions) {
+              parentPolygon.setOptions({ ...rootStyle, bubble: false });
+            }
+          }
+          if (Array.isArray(subPolygons)) {
+            subPolygons.forEach((polygon, index) => {
+              const feature = subFeatures[index];
+              const rawName =
+                feature && feature.properties && feature.properties.name ? feature.properties.name : `镇区${index + 1}`;
+              const townName = this.normalizeTownName(rawName);
+              if (!this.townPolygonGroups[townName]) {
+                this.townPolygonGroups[townName] = [];
+              }
+              this.townPolygonGroups[townName].push(polygon);
+              polygon.setExtData({ townName });
+              polygon.setOptions({ ...townBaseStyle, bubble: true });
+              polygon.on('mouseover', () => {
+                this.highlightTown(townName);
+              });
+              polygon.on('mouseout', () => {
+                this.resetTownHighlight(townName);
+              });
+            });
           }
           this.clearMapLabels(map);
           this.mapLabels = subFeatures.map(feature => {
@@ -570,7 +619,7 @@ export default {
           map.add(this.mapLabels);
           districtExplorer.on('featureMouseover', (e, feature) => {
             if (feature && feature.properties && feature.properties.name) {
-              this.setActiveTown(feature.properties.name);
+              this.highlightTown(feature.properties.name);
             }
             if (districtExplorer.setHoverFeature) {
               districtExplorer.setHoverFeature(feature);
@@ -593,22 +642,190 @@ export default {
         });
       });
     },
-    renderCityOutline(AMap, map) {
+    renderTownPolygonsBySearch(AMap, map) {
+      this.mapPolygons = [];
+      this.clearMapLabels(map);
+      this.townPolygonGroups = Object.create(null);
+      this.hoveredTownName = '';
       const districtSearch = new AMap.DistrictSearch({
         level: 'city',
-        subdistrict: 0,
+        subdistrict: 1,
         extensions: 'all'
       });
       districtSearch.search('中山市', (status, result) => {
         if (status !== 'complete' || !result.districtList || !result.districtList.length) {
+          this.mapError = '中山市边界加载失败，请检查 Key 或安全密钥配置。';
+          this.mapLoading = false;
           return;
         }
         const city = result.districtList[0];
         this.drawDistrict(AMap, map, city, { isRoot: true, name: '中山市' });
-        if (this.mapPolygons.length) {
-          map.setFitView(this.mapPolygons, false, [60, 60, 60, 60]);
+        const subdistricts = city.districtList || [];
+        if (!subdistricts.length) {
+          this.loadGeojsonTowns(AMap, map);
+          return;
+        }
+        let pending = subdistricts.length;
+        let hasTown = false;
+        const townNames = new Set();
+        subdistricts.forEach(sub => {
+          const keyword = sub.adcode || sub.name;
+          const subSearch = new AMap.DistrictSearch({
+            level: 'district',
+            subdistrict: 0,
+            extensions: 'all'
+          });
+          subSearch.search(keyword, (subStatus, subResult) => {
+            pending -= 1;
+            if (subStatus === 'complete' && subResult.districtList && subResult.districtList.length) {
+              const detail = subResult.districtList[0];
+              const normalizedName = this.normalizeTownName(sub.name || detail.name || '');
+              const isValidTown =
+                detail.boundaries &&
+                detail.boundaries.length &&
+                detail.name !== city.name &&
+                detail.adcode !== city.adcode;
+              if (isValidTown) {
+                hasTown = true;
+                townNames.add(normalizedName || detail.name || sub.name);
+                this.drawDistrict(AMap, map, detail, { name: sub.name, addLabel: true });
+              }
+            }
+            if (pending === 0) {
+              if (!hasTown || townNames.size <= 1) {
+                this.loadGeojsonTowns(AMap, map);
+                return;
+              } else {
+                this.mapError = '';
+                if (this.mapPolygons.length) {
+                  map.setFitView(this.mapPolygons, false, [60, 60, 60, 60]);
+                }
+              }
+              this.mapReady = hasTown;
+              this.mapLoading = false;
+              if (this.mapLoadTimer) {
+                clearTimeout(this.mapLoadTimer);
+                this.mapLoadTimer = null;
+              }
+            }
+          });
+        });
+      });
+    },
+    async loadGeojsonTowns(AMap, map) {
+      try {
+        const response = await fetch(this.geojsonUrl, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('geojson not found');
+        }
+        const geojson = await response.json();
+        this.renderGeojsonTowns(AMap, map, geojson);
+      } catch (error) {
+        this.mapError = '暂未获取镇区边界数据，可导入本地 GeoJSON 作为补充。';
+        this.mapLoading = false;
+        if (this.mapLoadTimer) {
+          clearTimeout(this.mapLoadTimer);
+          this.mapLoadTimer = null;
+        }
+      }
+    },
+    renderGeojsonTowns(AMap, map, geojson) {
+      const features = geojson && geojson.features ? geojson.features : [];
+      if (!features.length) {
+        this.mapError = 'GeoJSON 数据为空，请检查文件格式。';
+        this.mapLoading = false;
+        return;
+      }
+      this.mapPolygons = [];
+      this.clearMapLabels(map);
+      this.townPolygonGroups = Object.create(null);
+      this.hoveredTownName = '';
+      const townBaseStyle = this.getTownBaseStyle();
+      features.forEach(feature => {
+        const name = feature.properties && feature.properties.name ? feature.properties.name : '镇区';
+        const townName = this.normalizeTownName(name);
+        const geometry = feature.geometry || {};
+        const type = geometry.type;
+        const coordinates = geometry.coordinates || [];
+        const addPolygon = ring => {
+          const polygon = new AMap.Polygon({
+            path: ring,
+            ...townBaseStyle,
+            bubble: true
+          });
+          polygon.setMap(map);
+          this.mapPolygons.push(polygon);
+          if (!this.townPolygonGroups[townName]) {
+            this.townPolygonGroups[townName] = [];
+          }
+          this.townPolygonGroups[townName].push(polygon);
+          polygon.on('mouseover', () => {
+            this.highlightTown(townName);
+          });
+          polygon.on('mouseout', () => {
+            this.resetTownHighlight(townName);
+          });
+        };
+        if (type === 'Polygon') {
+          coordinates.forEach(ring => addPolygon(ring));
+        } else if (type === 'MultiPolygon') {
+          coordinates.forEach(polygonGroup => {
+            polygonGroup.forEach(ring => addPolygon(ring));
+          });
+        }
+        const center =
+          (feature.properties && feature.properties.center) ||
+          this.getGeojsonCenter(coordinates);
+        if (center && Array.isArray(center) && center.length === 2) {
+          const label = new AMap.Text({
+            text: name,
+            position: center,
+            offset: new AMap.Pixel(0, 0),
+            style: {
+              color: '#1c2c27',
+              fontSize: '12px',
+              padding: '2px 6px',
+              backgroundColor: 'rgba(255,255,255,0.85)',
+              borderRadius: '10px',
+              border: '1px solid rgba(31,122,109,0.2)'
+            }
+          });
+          map.add(label);
+          this.mapLabels.push(label);
         }
       });
+      if (this.mapPolygons.length) {
+        map.setFitView(this.mapPolygons, false, [60, 60, 60, 60]);
+      }
+      this.mapError = '';
+      this.mapReady = true;
+      this.mapLoading = false;
+      if (this.mapLoadTimer) {
+        clearTimeout(this.mapLoadTimer);
+        this.mapLoadTimer = null;
+      }
+    },
+    getGeojsonCenter(coordinates) {
+      if (!coordinates || !coordinates.length) {
+        return null;
+      }
+      const ring =
+        Array.isArray(coordinates[0][0]) && Array.isArray(coordinates[0][0][0])
+          ? coordinates[0][0]
+          : coordinates[0];
+      if (!Array.isArray(ring) || !ring.length) {
+        return null;
+      }
+      let sumLng = 0;
+      let sumLat = 0;
+      ring.forEach(point => {
+        if (Array.isArray(point) && point.length >= 2) {
+          sumLng += Number(point[0]);
+          sumLat += Number(point[1]);
+        }
+      });
+      const count = ring.length || 1;
+      return [sumLng / count, sumLat / count];
     },
     clearMapLabels(map) {
       if (this.mapLabels && this.mapLabels.length) {
@@ -616,38 +833,137 @@ export default {
         this.mapLabels = [];
       }
     },
+    resolveDistrictCenter(district) {
+      if (!district) {
+        return null;
+      }
+      if (Array.isArray(district.center)) {
+        return district.center;
+      }
+      if (typeof district.center === 'string') {
+        const parts = district.center.split(',').map(value => Number(value));
+        if (parts.length === 2 && parts.every(num => !Number.isNaN(num))) {
+          return parts;
+        }
+      }
+      if (Array.isArray(district.centroid)) {
+        return district.centroid;
+      }
+      return null;
+    },
+    getRootStyle() {
+      return {
+        strokeColor: '#c75a31',
+        strokeWeight: 2.0,
+        strokeOpacity: 0.6,
+        fillColor: 'rgba(199, 90, 49, 0.03)',
+        fillOpacity: 0.04,
+        zIndex: 80
+      };
+    },
+    getTownBaseStyle() {
+      return {
+        strokeColor: '#4aa997',
+        strokeWeight: 1.8,
+        strokeOpacity: 0.9,
+        fillColor: 'rgba(74, 169, 151, 0.08)',
+        fillOpacity: 0.16,
+        zIndex: 120
+      };
+    },
+    getTownHoverStyle() {
+      return {
+        strokeColor: '#c75a31',
+        strokeWeight: 2.4,
+        strokeOpacity: 0.95,
+        fillColor: 'rgba(199, 90, 49, 0.14)',
+        fillOpacity: 0.32,
+        zIndex: 140
+      };
+    },
+    resetTownHighlightByName(name) {
+      if (!name || !this.townPolygonGroups[name]) {
+        return;
+      }
+      const baseStyle = this.getTownBaseStyle();
+      this.townPolygonGroups[name].forEach(polygon => {
+        polygon.setOptions({ ...baseStyle, bubble: true });
+      });
+    },
+    highlightTown(name) {
+      const normalized = this.normalizeTownName(name);
+      if (this.hoveredTownName && this.hoveredTownName !== normalized) {
+        this.resetTownHighlightByName(this.hoveredTownName);
+      }
+      const hoverStyle = this.getTownHoverStyle();
+      if (this.townPolygonGroups[normalized] && this.townPolygonGroups[normalized].length) {
+        this.townPolygonGroups[normalized].forEach(polygon => {
+          polygon.setOptions({ ...hoverStyle, bubble: true });
+        });
+      }
+      this.hoveredTownName = normalized;
+      this.setActiveTown(normalized);
+    },
+    resetTownHighlight(name) {
+      const normalized = this.normalizeTownName(name);
+      if (this.hoveredTownName !== normalized) {
+        return;
+      }
+      this.resetTownHighlightByName(normalized);
+      this.hoveredTownName = '';
+    },
     drawDistrict(AMap, map, district, options) {
       if (!district || !district.boundaries || !district.boundaries.length) {
         return;
       }
       const isRoot = options && options.isRoot;
       const name = options && options.name ? options.name : district.name;
+      const townName = this.normalizeTownName(name);
+      const shouldLabel = options && options.addLabel;
+      const rootStyle = this.getRootStyle();
+      const townBaseStyle = this.getTownBaseStyle();
       district.boundaries.forEach(path => {
         const polygon = new AMap.Polygon({
           path,
-          strokeColor: isRoot ? '#c75a31' : '#1f7a6d',
-          strokeWeight: isRoot ? 2.6 : 1.4,
-          strokeOpacity: 0.9,
-          fillColor: isRoot ? 'rgba(199, 90, 49, 0.08)' : 'rgba(31, 122, 109, 0.18)',
-          fillOpacity: isRoot ? 0.12 : 0.3,
-          bubble: true
+          ...(isRoot ? rootStyle : townBaseStyle),
+          bubble: !isRoot,
+          zIndex: isRoot ? rootStyle.zIndex : townBaseStyle.zIndex
         });
         polygon.setMap(map);
         this.mapPolygons.push(polygon);
         if (!isRoot) {
-          const baseOptions = {
-            strokeWeight: 1.4,
-            fillOpacity: 0.3
-          };
+          if (!this.townPolygonGroups[townName]) {
+            this.townPolygonGroups[townName] = [];
+          }
+          this.townPolygonGroups[townName].push(polygon);
           polygon.on('mouseover', () => {
-            polygon.setOptions({ strokeWeight: 2, fillOpacity: 0.5 });
-            this.setActiveTown(name);
+            this.highlightTown(townName);
           });
           polygon.on('mouseout', () => {
-            polygon.setOptions(baseOptions);
+            this.resetTownHighlight(townName);
           });
         }
       });
+      if (!isRoot && shouldLabel) {
+        const center = this.resolveDistrictCenter(district);
+        if (center) {
+          const label = new AMap.Text({
+            text: name,
+            position: center,
+            offset: new AMap.Pixel(0, 0),
+            style: {
+              color: '#1c2c27',
+              fontSize: '12px',
+              padding: '2px 6px',
+              backgroundColor: 'rgba(255,255,255,0.85)',
+              borderRadius: '10px',
+              border: '1px solid rgba(31,122,109,0.2)'
+            }
+          });
+          map.add(label);
+          this.mapLabels.push(label);
+        }
+      }
     },
     normalizeTownName(name) {
       if (this.townInfo[name]) {
@@ -902,16 +1218,14 @@ export default {
               <div class="map-card reveal">
                 <div class="map-visual">
                   <div id="zs-amap" class="amap-container"></div>
-                  <div v-if="mapLoading && !mapError" class="map-fallback map-fallback--loading">
+                  <div v-if="!mapBaseReady" class="map-fallback map-fallback--loading">
                     <p>地图加载中...</p>
                     <small>首次加载需要几秒，请稍候。</small>
                   </div>
-                  <div v-if="mapError" class="map-fallback map-fallback--error">
-                    <p>{{ mapError }}</p>
-                    <small>如需启用高德安全密钥，请在 amapSecurityCode 中填写。</small>
-                  </div>
                   <div class="map-hint">鼠标悬停镇区查看特色</div>
                 </div>
+                <p v-if="mapLoading && mapBaseReady" class="map-status">镇区数据加载中...</p>
+                <p v-else-if="mapError" class="map-status map-status--error">{{ mapError }}</p>
                 <div class="map-tags">
                   <span v-for="tag in mapTags" :key="tag" class="map-tag">{{ tag }}</span>
                 </div>
@@ -1706,6 +2020,16 @@ export default {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
+}
+
+.map-status {
+  margin: 12px 0 0;
+  font-size: 13px;
+  color: var(--ink-soft);
+}
+
+.map-status--error {
+  color: var(--accent);
 }
 
 .map-tag {

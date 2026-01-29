@@ -149,17 +149,6 @@ public class UserImpl implements UserService {
         return userMapper.updatePassword(uid, oldPassword, newPassword) > 0;
     }
 
-    /**
-     * 获取经办人信息（编号，名字，性别）
-     */
-    @Override
-    public List<UserInfo> getAgency() {
-        List<UserInfo> agencies = userMapper.getAgency();
-        for (UserInfo userInfo : agencies) {
-            userInfo.setPassword("Unknown");
-        }
-        return agencies;
-    }
 
     /**
      * 数据回显
@@ -179,3 +168,4 @@ public class UserImpl implements UserService {
         return userMapper.getUserNameAndPassword(login);
     }
 }
+

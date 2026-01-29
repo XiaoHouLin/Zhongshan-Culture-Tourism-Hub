@@ -92,5 +92,4 @@ public interface UserService {
     /**
      * 获取经办人信息（编号，名字，年龄，性别）
      */
-    List<UserInfo> getAgency();
 }

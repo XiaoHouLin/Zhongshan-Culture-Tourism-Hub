@@ -365,8 +365,8 @@ export default {
 </script>
 
 <template>
-  <div style="height: 100vh;">
-    <el-card shadow="always" class="fixed-height-card">
+  <div class="panel-theme cultural-management">
+    <el-card shadow="always" class="fixed-height-card panel-card">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <div style="display: flex;">
           <el-button type="primary" icon="el-icon-search" @click="searchForm" style="margin: 10px">查询</el-button>
@@ -512,7 +512,7 @@ export default {
           </div>
         </div>
         <div slot="footer" class="dialog-footer" style="padding-top: 0">
-          <el-card shadow="hover" style="border-radius: 30px;background-color: #d7eafd">
+          <el-card shadow="hover" class="tips-card">
             <div style="text-align: left">
               <h2>tips:</h2>
               <p class="strong">1.🏷️ 编号格式建议使用 TP-分类-编号，务必
@@ -619,5 +619,68 @@ export default {
 
 .marginWidth {
   margin-bottom: 30px;
+}
+
+.panel-theme {
+  --font-display: 'STZhongsong', 'FangSong', 'Songti SC', 'STSong', serif;
+  --font-body: 'HarmonyOS Sans SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ink: #1c2c27;
+  --ink-soft: #40534c;
+  --accent: #c75a31;
+  --teal: #1f7a6d;
+  --paper: #ffffff;
+  --shadow-soft: 0 20px 45px rgba(25, 45, 40, 0.12);
+  min-height: 100%;
+  padding: 8px 6px 28px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(199, 90, 49, 0.12), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(31, 122, 109, 0.05) 0, rgba(31, 122, 109, 0.05) 1px, transparent 1px, transparent 120px),
+    repeating-linear-gradient(0deg, rgba(31, 122, 109, 0.04) 0, rgba(31, 122, 109, 0.04) 1px, transparent 1px, transparent 120px),
+    linear-gradient(180deg, #f9f4ec 0%, #f5f9fb 55%, #ffffff 100%);
+}
+
+.panel-card {
+  border-radius: 24px !important;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: var(--shadow-soft);
+  background: var(--paper) !important;
+  color: var(--ink);
+}
+
+.tips-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.16);
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.panel-theme ::v-deep .el-card {
+  border: 1px solid rgba(31, 122, 109, 0.1);
+}
+
+.panel-theme ::v-deep .el-card__body {
+  color: var(--ink);
+}
+
+.panel-theme ::v-deep .el-dialog {
+  border-radius: 18px;
+}
+
+.panel-theme ::v-deep .el-dialog__body {
+  padding-top: 16px;
+}
+
+.panel-theme ::v-deep .el-table {
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.panel-theme ::v-deep .el-table th {
+  background: rgba(31, 122, 109, 0.08);
+  color: var(--ink);
 }
 </style>

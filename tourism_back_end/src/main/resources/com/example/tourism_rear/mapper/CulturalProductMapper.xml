@@ -13,6 +13,7 @@
         <result column="price" property="price"/>
         <result column="stock" property="stock"/>
         <result column="sales" property="sales"/>
+        <result column="create_time" property="createTime"/>
     </resultMap>
 
     <resultMap id="CulturalProductCategoryMap" type="com.example.tourism_rear.pack.utils.CulturalProductCategory">
@@ -36,7 +37,8 @@
             p.category,
             p.price,
             p.stock,
-            IFNULL(SUM(od.purchaseNum), 0) AS sales
+            IFNULL(SUM(od.purchaseNum), 0) AS sales,
+            p.create_time
         FROM cultural_product p
         LEFT JOIN orderDetails od ON od.productCode = p.productCode
         <where>
@@ -62,7 +64,7 @@
                 AND p.stock BETWEEN #{minStock} AND #{maxStock}
             </if>
         </where>
-        GROUP BY p.productCode, p.productName, p.displayMode, p.highlight, p.category, p.price, p.stock
+        GROUP BY p.productCode, p.productName, p.displayMode, p.highlight, p.category, p.price, p.stock, p.create_time
     </select>
 
     <update id="updateProduct">

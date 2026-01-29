@@ -240,7 +240,7 @@ export default {
 }
 </script>
 <template>
-  <div class="center-container">
+  <div class="center-container panel-theme user-info">
 
     <el-dialog title="编辑资料" :close-on-click-modal="false" :visible.sync="dialogEditInfo" center
                width="1000px" @open="onDialogOpen" @close="onDialogClose">
@@ -273,9 +273,7 @@ export default {
               ></el-input>
             </el-form-item>
           </el-form>
-          <el-card shadow="hover"
-                   style="width: 300px;height: 220px;margin-left: 110px;
-                   display: flex; align-items: center; justify-content: center;">
+          <el-card shadow="hover" class="info-avatar-card">
             <p style="font-size: 130px">🎯</p>
           </el-card>
         </div>
@@ -313,7 +311,7 @@ export default {
           <el-button @click="cancelEdit">取 消</el-button>
           <el-button type="primary" @click="updateUserInfo" :disabled="isEditInvalid">确 定</el-button>
         </div>
-        <el-card shadow="hover" style="border-radius: 30px;background-color: #d7eafd">
+        <el-card shadow="hover" class="tips-card">
           <div style="text-align: left">
             <h2>tips:</h2>
             <p class="strong">1. 🆔用户编号、顾客编号唯一⚠️，不可修改🔒。</p>
@@ -329,7 +327,7 @@ export default {
 
     <el-dialog title="修改密码" :close-on-click-modal="false"
                :visible.sync="dialogUpdatePassword" center width="500px">
-      <el-form ref="passwordRef" :model="edit" :rules="rules" style="width: 400px">
+      <el-form ref="passwordRef" :model="edit" :rules="rules" class="dialog-form">
         <el-form-item label="原密码" prop="oldPassword" :label-width="searchLabelWidth" class="strong marginWidth">
           <el-input v-model="edit.oldPassword" autocomplete="off" suffix-icon="el-icon-lock"
                     placeholder="请输入原密码" type="password" show-password
@@ -354,13 +352,13 @@ export default {
       </div>
     </el-dialog>
 
-    <el-card class="interior-container" v-loading="loading">
+    <el-card class="interior-container panel-card" v-loading="loading">
       <div class="center-container">
         <el-avatar :size="300" :src="circleUrl"></el-avatar>
         <br><br>
         <h1 class="strong">{{ this.userinfo.username }}</h1>
       </div>
-      <el-descriptions ref="infoTable" class="margin-top" :column="3" :size="size" border>
+      <el-descriptions ref="infoTable" class="margin-top info-desc" :column="3" :size="size" border>
         <template slot="extra">
           <el-button
               type="primary"
@@ -405,8 +403,7 @@ export default {
           </template>
           <template>
             <el-tag v-if="userinfo.authority === 1" type="danger" effect="dark">管理员</el-tag>
-            <el-tag v-else-if="userinfo.authority === 2" type="success" effect="dark">旅行顾问</el-tag>
-            <el-tag v-else-if="userinfo.authority === 3" effect="dark">顾客</el-tag>
+            <el-tag v-else effect="dark">顾客</el-tag>
           </template>
         </el-descriptions-item>
         <el-descriptions-item>
@@ -493,5 +490,88 @@ export default {
   width: 80%;
   height: 80%;
   margin-top: 90px;
+}
+
+.panel-theme {
+  --font-display: 'STZhongsong', 'FangSong', 'Songti SC', 'STSong', serif;
+  --font-body: 'HarmonyOS Sans SC', 'Source Han Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  --ink: #1c2c27;
+  --ink-soft: #40534c;
+  --accent: #c75a31;
+  --teal: #1f7a6d;
+  --paper: #ffffff;
+  --shadow-soft: 0 20px 45px rgba(25, 45, 40, 0.12);
+  min-height: 100%;
+  padding: 8px 6px 28px;
+  color: var(--ink);
+  font-family: var(--font-body);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.12), transparent 45%),
+    radial-gradient(circle at 85% 18%, rgba(199, 90, 49, 0.12), transparent 50%),
+    repeating-linear-gradient(90deg, rgba(31, 122, 109, 0.05) 0, rgba(31, 122, 109, 0.05) 1px, transparent 1px, transparent 120px),
+    repeating-linear-gradient(0deg, rgba(31, 122, 109, 0.04) 0, rgba(31, 122, 109, 0.04) 1px, transparent 1px, transparent 120px),
+    linear-gradient(180deg, #f9f4ec 0%, #f5f9fb 55%, #ffffff 100%);
+}
+
+.panel-card {
+  border-radius: 24px !important;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: var(--shadow-soft);
+  background: var(--paper) !important;
+  color: var(--ink);
+}
+
+.info-avatar-card {
+  width: 300px;
+  height: 220px;
+  margin-left: 110px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  background: rgba(255, 255, 255, 0.92) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.tips-card {
+  border-radius: 20px !important;
+  border: 1px solid rgba(31, 122, 109, 0.16);
+  background: rgba(255, 255, 255, 0.94) !important;
+  box-shadow: var(--shadow-soft);
+}
+
+.dialog-form {
+  width: 400px;
+}
+
+.info-desc {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 18px;
+  padding: 12px 8px;
+}
+
+.panel-theme ::v-deep .el-card {
+  border: 1px solid rgba(31, 122, 109, 0.1);
+}
+
+.panel-theme ::v-deep .el-card__body {
+  color: var(--ink);
+}
+
+.panel-theme ::v-deep .el-dialog {
+  border-radius: 18px;
+}
+
+.panel-theme ::v-deep .el-dialog__body {
+  padding-top: 16px;
+}
+
+.panel-theme ::v-deep .el-descriptions__header {
+  margin-bottom: 16px;
+}
+
+.panel-theme ::v-deep .el-descriptions-item__label {
+  background: rgba(31, 122, 109, 0.08);
 }
 </style>

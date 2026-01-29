@@ -2,6 +2,8 @@ package com.example.tourism_rear.pack.utils;
 
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 /**
  * Cultural creative product information transferred between layers.
  */
@@ -15,4 +17,5 @@ public class CulturalProductInfo {
     private Double price;
     private Integer stock;
     private Integer sales;
+    private LocalDateTime createTime;
 }

@@ -10,6 +10,7 @@ import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
@@ -23,6 +24,9 @@ public class CulturalProductServiceImpl implements CulturalProductService {
 
     @Override
     public void addProduct(CulturalProductInfo productInfo) {
+        if (productInfo.getCreateTime() == null) {
+            productInfo.setCreateTime(LocalDateTime.now());
+        }
         productMapper.insert(productInfo);
     }
 

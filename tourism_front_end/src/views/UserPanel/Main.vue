@@ -90,8 +90,7 @@ export default {
               <h1 style="color: white">{{ username }}</h1>
               <template>
                 <el-tag v-if="authority === 1" type="danger" effect="dark">管理员</el-tag>
-                <el-tag v-else-if="authority === 2" type="success" effect="dark">旅行顾问</el-tag>
-                <el-tag v-else-if="authority === 3" effect="dark">顾客</el-tag>
+                <el-tag v-else effect="dark">顾客</el-tag>
               </template>
             </div>
           </div>
@@ -122,7 +121,7 @@ export default {
             </el-menu-item>
           </router-link>
         </div>
-        <div v-if="authority === 1 || authority === 2">
+        <div v-if="authority === 1">
           <router-link to="/userPanel/culturalProducts/manage" class="no-underline">
             <el-menu-item index="5" @click="setActiveIndex('5')">
               <i class="el-icon-notebook-1 icon-color"></i>

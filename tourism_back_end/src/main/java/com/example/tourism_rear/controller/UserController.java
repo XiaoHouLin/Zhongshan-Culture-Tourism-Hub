@@ -111,12 +111,6 @@ public class UserController {
      * 获取经办人信息
      * @author : 🐒
      */
-    @GetMapping("/agency")
-    public Result agency(){
-        log.info("查询经办人信息");
-        return Result.success(userService.getAgency());
-    }
-
     /**
      * 查询个人信息
      *

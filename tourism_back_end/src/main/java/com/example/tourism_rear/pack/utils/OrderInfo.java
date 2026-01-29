@@ -11,5 +11,4 @@ public class OrderInfo {
     private String cname;
     private String caddress;
     private String cremark;
-    private String chooseAgency;
 }

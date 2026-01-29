@@ -6,16 +6,13 @@ export default {
   data() {
     return {
       shoppingCart: [],
-      agency: [],
       cartTotal: 0,
       totalAmount: 0,
-      agencyNumber: 0,
       carriage: '免额外运费',
       carriagePrice: 10,
       exemptCarriage: 60,
       loading: false,
       isPaying: false,
-      dialogAgency: false,
       dangerColor: '#ff0000',
       userInfo: {},
       orderId: [],
@@ -26,8 +23,7 @@ export default {
         cphone: '',
         cname: '',
         caddress: '',
-        cremark: '',
-        chooseAgency: ''
+        cremark: ''
       }
     }
   },
@@ -37,7 +33,7 @@ export default {
   computed: {
     isBillInvalid() {
       return !this.userInfo.email || !this.userInfo.cphone || !this.userInfo.cname ||
-          !this.userInfo.caddress || !this.userInfo.cremark || !this.agencyNumber;
+          !this.userInfo.caddress || !this.userInfo.cremark;
     }
   },
   methods: {
@@ -75,9 +71,6 @@ export default {
               }
             }
           });
-          apiRear.get(`/userInfo/agency`).then(result => {
-            this.agency = result.data.data;
-          })
         }
       } catch (err) {
         this.$message.error('无法获取购物车数据！');
@@ -93,7 +86,6 @@ export default {
         this.orderInfo.cname = this.userInfo.cname;
         this.orderInfo.caddress = this.userInfo.caddress;
         this.orderInfo.cremark = this.userInfo.cremark;
-        this.orderInfo.chooseAgency = this.agency[this.agencyNumber - 1].cno;
         await new Promise(resolve => setTimeout(resolve, 2000));//延迟2秒
         const res = await apiRear.post(`/order/payment`, this.orderInfo);
         if (res.data.message === "余额不足") {
@@ -119,13 +111,6 @@ export default {
     },
     goBack() {
       this.$router.push('/userPanel/culturalProducts');
-    },
-    getGender(sex) {
-      if (sex === 'F') {
-        return '女';
-      } else if (sex === 'M') {
-        return '男'
-      } else return '未知'
     }
   }
 }
@@ -133,34 +118,6 @@ export default {
 
 <template>
   <div style="height: 100%;">
-    <el-dialog
-        title="选择旅行顾问"
-        :visible.sync="dialogAgency"
-        center
-        width="800px">
-      <el-row :gutter="15">
-        <el-col :span="8" v-for="(item, index) in agency" :key="index">
-          <!--       label从0开始会导致第一个旅行顾问失效-->
-          <el-radio
-              v-model="agencyNumber"
-              :label="index + 1"
-              shadow="hover"
-              style="margin: 15px;padding: 20px; display: flex; align-items: center; height: 20%;"
-              border>
-            <div style="display: flex; flex-direction: column; margin-left: 10px;">
-              <span class="agency">旅行顾问：{{ item.cname }}</span>
-              <span class="agency">年龄：{{ item.cage }}</span>
-              <span class="agency">性别：{{ getGender(item.csex) }}</span>
-            </div>
-          </el-radio>
-        </el-col>
-      </el-row>
-      <span slot="footer" class="dialog-footer">
-    <el-button @click="dialogAgency = false">取 消</el-button>
-    <el-button type="primary" @click="dialogAgency = false">确 定</el-button>
-  </span>
-    </el-dialog>
-
     <el-page-header @back="goBack">
       <template #content>
         <span>选购文创产品</span>
@@ -205,20 +162,6 @@ export default {
             show-word-limit
         >
         </el-input>
-        <el-divider class="info-container"></el-divider>
-        <div style="display: flex">
-          <div style="width: 285px">
-            <p class="bold-content" style="font-size: 25px; margin:5px 0 5px 0;">🤚稍等一步，</p>
-            <p class="strong" style="font-size: 25px;margin: 5px 0 12px 0;color: #6a6a6e">
-              🧭让旅行顾问为你确认细节。</p>
-          </div>
-          <el-button type="primary"
-                     style="background-color: #3f9af8;margin: 22px 0 22px 0;width: 115px;border-radius: 10px;"
-                     @click="dialogAgency = true"
-          >
-            选择旅行顾问
-          </el-button>
-        </div>
         <el-divider class="info-container"></el-divider>
         <div class="flex-container info-container info-font-container">
           <p>小计</p>
@@ -305,10 +248,5 @@ export default {
 .custom-button:disabled {
   background-color: #cccccc; /* 浅色背景 */
   color: #888888; /* 浅色文字 */
-}
-
-.agency {
-  margin: 5px 5px 5px 0;
-  font-weight: bold;
 }
 </style>

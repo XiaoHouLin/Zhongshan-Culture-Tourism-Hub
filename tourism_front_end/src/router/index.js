@@ -15,7 +15,7 @@ import {jwtDecode} from "jwt-decode";
 
 Vue.use(VueRouter)
 
-//权限类型：1.管理员 2.旅行顾问 3.顾客; 管理员包含旅行顾问权限，旅行顾问包含顾客权限。
+//权限类型：1.管理员 3.顾客; 管理员包含顾客权限。
 const router = new VueRouter({
     mode:'history',
     routes: [
@@ -100,7 +100,7 @@ const router = new VueRouter({
                     meta: {
                         showRouterView: true,
                         requiresAuth: true,
-                        requiredRole: 2
+                        requiredRole: 1
                     },
                 },
                 {

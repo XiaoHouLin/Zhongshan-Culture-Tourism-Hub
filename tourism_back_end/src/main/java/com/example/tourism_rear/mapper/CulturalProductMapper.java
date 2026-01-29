@@ -23,8 +23,8 @@ public interface CulturalProductMapper {
                                    @Param("minStock") Integer minStock,
                                    @Param("maxStock") Integer maxStock);
 
-    @Insert("INSERT INTO cultural_product (productCode, productName, displayMode, highlight, category, price, stock) " +
-            "VALUES (#{productCode},#{productName},#{displayMode},#{highlight},#{category},#{price},#{stock})")
+    @Insert("INSERT INTO cultural_product (productCode, productName, displayMode, highlight, category, price, stock, create_time) " +
+            "VALUES (#{productCode},#{productName},#{displayMode},#{highlight},#{category},#{price},#{stock},#{createTime})")
     void insert(CulturalProductInfo productInfo);
 
     void deleteProducts(List<String> productCodes);

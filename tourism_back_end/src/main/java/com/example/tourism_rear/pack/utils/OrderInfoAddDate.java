@@ -15,7 +15,6 @@ public class OrderInfoAddDate{
     private String name;
     private String address;
     private String remark;
-    private String agency;
     private LocalDateTime CreateDate;
     private LocalDateTime CompleteDate;
 }
