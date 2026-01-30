@@ -1,5 +1,7 @@
 ﻿
 <script>
+import {jwtDecode} from 'jwt-decode';
+
 const AMAP_SCRIPT_ID = 'amap-js-sdk';
 const AMAP_UI_SCRIPT_ID = 'amap-ui-sdk';
 
@@ -12,10 +14,8 @@ export default {
         { label: '景点导览', route: '/travel-experiences' },
         { label: '文创商城', route: '/culturalProducts', emphasis: true }
       ],
-      navActions: [
-        { label: '登录', route: '/login', type: 'plain' },
-        { label: '注册', route: '/register', type: 'primary' }
-      ],
+      token: sessionStorage.getItem('token') || '',
+      currentUser: null,
       heroContent: {
         eyebrow: '中山市城市文化旅游特色展示系统',
         title: '遇见中山：岐江水岸 · 孙中山故里 · 灯饰之都',
@@ -321,15 +321,72 @@ export default {
   computed: {
     currentPath() {
       return this.$route.path;
+    },
+    isLoggedIn() {
+      return Boolean(this.token);
+    },
+    isCustomer() {
+      return this.currentUser && this.currentUser.authority === 3;
+    },
+    displayName() {
+      return this.currentUser && this.currentUser.username ? this.currentUser.username : '游客';
+    },
+    avatarText() {
+      if (!this.currentUser || !this.currentUser.username) {
+        return '游';
+      }
+      return this.currentUser.username.trim().slice(0, 1);
+    }
+  },
+  watch: {
+    $route() {
+      this.refreshUser();
     }
   },
   methods: {
+    refreshUser() {
+      const token = sessionStorage.getItem('token');
+      this.token = token || '';
+      if (!token) {
+        this.currentUser = null;
+        return;
+      }
+      try {
+        this.currentUser = jwtDecode(token);
+      } catch (error) {
+        this.currentUser = null;
+        this.token = '';
+        sessionStorage.removeItem('token');
+      }
+    },
     isActive(route) {
+      if (route === '/' && (this.currentPath === '/' || this.currentPath === '/indexView')) {
+        return true;
+      }
       return this.currentPath === route;
     },
     goTo(route) {
       if (route) {
         this.$router.push(route).catch(() => {});
+      }
+    },
+    handleLogout() {
+      sessionStorage.removeItem('token');
+      localStorage.removeItem('shoppingCart');
+      this.token = '';
+      this.currentUser = null;
+      this.$message.success('已退出登录');
+      if (this.$route.path !== '/indexView') {
+        this.$router.push('/indexView').catch(() => {});
+      }
+    },
+    handleUserCommand(command) {
+      if (command === 'profile') {
+        this.$router.push('/userInfo').catch(() => {});
+        return;
+      }
+      if (command === 'logout') {
+        this.handleLogout();
       }
     },
     initReveal() {
@@ -1007,6 +1064,9 @@ export default {
       }
     }
   },
+  created() {
+    this.refreshUser();
+  },
   mounted() {
     if (typeof this.tip === 'function') {
       this.tip();
@@ -1059,18 +1119,28 @@ export default {
             <span v-if="item.emphasis" class="nav-badge">主入口</span>
           </button>
         </div>
-        <div class="nav-actions">
-          <el-button
-            v-for="action in navActions"
-            :key="action.route"
-            :type="action.type === 'primary' ? 'primary' : 'default'"
-            :plain="action.type === 'plain'"
-            class="nav-action"
-            @click="goTo(action.route)"
-          >
-            {{ action.label }}
-          </el-button>
-        </div>
+          <div class="nav-actions">
+            <template v-if="!isLoggedIn">
+              <el-button type="default" plain class="nav-action" @click="goTo('/login')">登录</el-button>
+              <el-button type="primary" class="nav-action" @click="goTo('/register')">注册</el-button>
+            </template>
+            <template v-else>
+              <el-dropdown @command="handleUserCommand">
+                <span class="user-trigger">
+                  <el-avatar :size="36" class="user-avatar">{{ avatarText }}</el-avatar>
+                  <span class="user-name">{{ displayName }}</span>
+                  <i class="el-icon-arrow-down"></i>
+                </span>
+                <el-dropdown-menu slot="dropdown">
+                  <el-dropdown-item command="profile">修改资料</el-dropdown-item>
+                  <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+                </el-dropdown-menu>
+              </el-dropdown>
+              <el-button type="default" plain class="nav-action nav-action--logout" @click="handleLogout">
+                退出登录
+              </el-button>
+            </template>
+          </div>
       </div>
     </el-header>
 
@@ -1451,14 +1521,15 @@ export default {
   height: 88px;
 }
 
-.nav-inner {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 0 24px;
+  .nav-inner {
+    position: relative;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 0 24px;
   min-height: 80px;
   gap: 24px;
 }
@@ -1501,15 +1572,17 @@ export default {
   line-height: 1.2;
 }
 
-.nav-links {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  justify-content: center;
-  flex-wrap: nowrap;
-  height: 100%;
-  justify-self: center;
-}
+  .nav-links {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: nowrap;
+    height: 100%;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+  }
 
 .nav-link {
   border: none;
@@ -1549,13 +1622,39 @@ export default {
   font-size: 10px;
 }
 
-.nav-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 100%;
-  justify-self: end;
-}
+  .nav-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 100%;
+    justify-self: end;
+  }
+
+  .user-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .user-avatar {
+    background: var(--teal);
+    color: #fff;
+    font-weight: 600;
+  }
+
+  .user-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .nav-action--logout {
+    margin-left: 4px;
+  }
 
 .nav-action {
   border-radius: 18px;
@@ -2520,11 +2619,11 @@ export default {
   }
 }
 
-@media (max-width: 1100px) {
-  .hero-inner {
-    flex-direction: column;
-    text-align: center;
-  }
+  @media (max-width: 1100px) {
+    .hero-inner {
+      flex-direction: column;
+      text-align: center;
+    }
 
   .hero-actions {
     justify-content: center;
@@ -2542,19 +2641,21 @@ export default {
     padding-right: 0;
   }
 
-  .nav-inner {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    padding: 16px 24px;
-    gap: 12px;
+    .nav-inner {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      padding: 16px 24px;
+      gap: 12px;
+    }
+  
+    .nav-links {
+      justify-content: flex-start;
+      flex-wrap: wrap;
+      position: static;
+      transform: none;
+    }
   }
-
-  .nav-links {
-    justify-content: flex-start;
-    flex-wrap: wrap;
-  }
-}
 
 @media (max-width: 900px) {
   .hero-carousel--top {
@@ -2585,7 +2686,7 @@ export default {
   }
 }
 
-@media (max-width: 680px) {
+  @media (max-width: 680px) {
   .hero-title {
     font-size: 32px;
   }
@@ -2606,14 +2707,16 @@ export default {
     max-width: none;
   }
 
-  .nav-inner {
-    align-items: flex-start;
-  }
-
-  .nav-links {
-    width: 100%;
-    justify-content: flex-start;
-  }
+    .nav-inner {
+      align-items: flex-start;
+    }
+  
+    .nav-links {
+      width: 100%;
+      justify-content: flex-start;
+      position: static;
+      transform: none;
+    }
 
   .nav-actions {
     width: 100%;

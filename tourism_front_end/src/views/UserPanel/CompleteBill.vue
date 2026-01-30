@@ -1,31 +1,116 @@
-<script setup>
+<script>
+import QRCode from 'qrcode';
 
+export default {
+  name: 'CompleteBill',
+  data() {
+    return {
+      pickupCode: '',
+      pickupToken: '',
+      pickupQrUrl: ''
+    };
+  },
+  created() {
+    this.pickupCode = sessionStorage.getItem('pickupCode') || '';
+    this.pickupToken = sessionStorage.getItem('pickupToken') || '';
+    this.generateQr();
+  },
+  methods: {
+    async generateQr() {
+      if (!this.pickupToken) {
+        return;
+      }
+      try {
+        const baseUrl = window.location.origin;
+        const verifyUrl = `${baseUrl}/pickup-verify?token=${encodeURIComponent(this.pickupToken)}`;
+        this.pickupQrUrl = await QRCode.toDataURL(verifyUrl, {width: 220, margin: 1});
+      } catch (error) {
+        this.pickupQrUrl = '';
+      }
+    }
+  }
+}
 </script>
 
 <template>
-  <div style="text-align: center;margin-top: 10%">
-    <p style="font-size: 200px; margin: 0;">🎁</p>
-    <p class="strong" style="font-size: 50px; margin: 0;">
-      您的文创好物正在打包发往旅程。
-    </p>
-    <p class="strong" style="color: #6a6a6e; font-size: 30px; margin-top: 20px;">
-      请稍候，精彩即将送达。
-    </p>
-    <el-button
-        type="primary"
-        icon="el-icon-goods"
-        @click="()=>{this.$router.push('/userPanel/culturalProducts');}"
-        round>继续逛逛
-    </el-button>
-    <el-button
-        type="primary"
-        icon="el-icon-menu"
-        @click="()=>{this.$router.push('/home');}"
-        round>返回首页
-    </el-button>
+  <div class="complete-page">
+    <el-card shadow="hover" class="complete-card">
+      <div class="complete-icon">✅</div>
+      <h2>支付成功</h2>
+      <p class="complete-subtitle">请携带取件码到线下取货点领取文创商品。</p>
+      <div class="pickup-info">
+        <div class="pickup-code">
+          <span>取件码</span>
+          <strong>{{ pickupCode || '已生成' }}</strong>
+        </div>
+        <div v-if="pickupQrUrl" class="pickup-qr">
+          <img :src="pickupQrUrl" alt="取件二维码" />
+          <small>二维码为加密内容，需管理员扫码确认取货。</small>
+        </div>
+      </div>
+      <div class="complete-actions">
+        <el-button type="primary" icon="el-icon-document" @click="$router.push('/userInfo')" round>查看订单</el-button>
+        <el-button type="primary" icon="el-icon-goods" @click="$router.push('/userPanel/culturalProducts')" round>继续购物</el-button>
+        <el-button plain icon="el-icon-back" @click="$router.push('/indexView')" round>返回首页</el-button>
+      </div>
+    </el-card>
   </div>
 </template>
 
 <style scoped>
+.complete-page {
+  min-height: 80vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
 
+.complete-card {
+  width: min(720px, 92vw);
+  text-align: center;
+  border-radius: 24px;
+}
+
+.complete-icon {
+  font-size: 72px;
+}
+
+.complete-subtitle {
+  margin: 6px 0 20px;
+  color: #5f6b66;
+}
+
+.pickup-info {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+  justify-items: center;
+}
+
+.pickup-code {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 18px;
+}
+
+.pickup-code strong {
+  font-size: 28px;
+  color: #1f7a6d;
+}
+
+.pickup-qr img {
+  width: 160px;
+  height: 160px;
+  border-radius: 12px;
+  border: 1px solid rgba(31, 122, 109, 0.2);
+}
+
+.complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
 </style>

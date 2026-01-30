@@ -22,6 +22,23 @@ apiRear.interceptors.request.use(config => {
   return Promise.reject(error);
 });
 
+apiRear.interceptors.response.use(
+  response => response,
+  error => {
+    const status = error && error.response ? error.response.status : null;
+    if (status === 401) {
+      if (sessionStorage.getItem('token')) {
+        sessionStorage.removeItem('token');
+      }
+      sessionStorage.setItem('loginExpired', '1');
+      if (!router.currentRoute || router.currentRoute.path !== '/login') {
+        router.replace('/login');
+      }
+    }
+    return Promise.reject(error);
+  }
+);
+
 
 new Vue({
   router,

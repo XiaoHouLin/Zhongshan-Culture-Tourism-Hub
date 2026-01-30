@@ -1,10 +1,11 @@
 <script>
 import {apiRear} from "@/axios";
+import {jwtDecode} from "jwt-decode";
 
 export default {
   name: 'LoginView',
   data() {
-    var validatePass = (rule, value, callback) => {
+    const validatePass = (rule, value, callback) => {
       if (value === '') {
         callback(new Error('请输入密码'));
       } else {
@@ -19,16 +20,13 @@ export default {
       }
     };
     return {
-      // backgroundImage: require('../../public/BackGround.png'),
       login: {
         password: '',
         username: '',
       },
       rules: {
         username: [{validator: validateUsername, trigger: 'blur'}],
-        password: [
-          {validator: validatePass, trigger: 'blur'}
-        ]
+        password: [{validator: validatePass, trigger: 'blur'}]
       },
       url: '/zqxy.jpg',
       isLoading: false
@@ -40,6 +38,10 @@ export default {
     }
   },
   async created() {
+    if (sessionStorage.getItem('loginExpired')) {
+      this.$message.warning('登录信息已过期，请重新登录');
+      sessionStorage.removeItem('loginExpired');
+    }
     await this.isTokenValid();
   },
   methods: {
@@ -49,27 +51,23 @@ export default {
       }
       this.isLoading = true;
       try {
-        // 响应拦截器
         apiRear.interceptors.response.use(
-            response => {
-              const authorizationHeader = response.headers['authorization'];
-              if (authorizationHeader) {
-                const token = authorizationHeader.replace('Bearer ', '');
-                sessionStorage.setItem('token', token);
-              }
-              return response;
-            },
-            error => {
-              return Promise.reject(error);
+          response => {
+            const authorizationHeader = response.headers['authorization'];
+            if (authorizationHeader) {
+              const token = authorizationHeader.replace('Bearer ', '');
+              sessionStorage.setItem('token', token);
             }
+            return response;
+          },
+          error => Promise.reject(error)
         );
         const response = await apiRear.post('login', this.login);
         if (response.data.code === 0) {
           this.$message.error('用户名或密码错误');
         } else {
           this.$message.success('登录成功');
-          // await this.$store.dispatch('setUser', {user: this.login.username});
-          await this.$router.push('/home');
+          await this.redirectAfterLogin();
         }
       } catch (error) {
         this.$message.error('未知错误');
@@ -83,17 +81,31 @@ export default {
         try {
           const response = await apiRear.post('/api/validate-token');
           if (response.data.code === 1) {
-            this.$message.success('您已登录！即将为您跳转...');
-            await this.delay(2000); // 延时 2 秒
-            await this.$router.push('/home');
+            this.$message.success('您已登录，即将为您跳转...');
+            await this.delay(1200);
+            await this.redirectAfterLogin();
           } else {
-            // Token 无效，处理相应逻辑
             console.log('Token is invalid');
           }
         } catch (error) {
           console.error('Error validating token:', error);
         }
       }
+    },
+    redirectAfterLogin() {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        return this.$router.push('/indexView');
+      }
+      try {
+        const user = jwtDecode(token);
+        if (user && user.authority === 3) {
+          return this.$router.push('/indexView');
+        }
+      } catch (error) {
+        // ignore decode failures and return to homepage
+      }
+      return this.$router.push('/home');
     },
     delay(ms) {
       return new Promise(resolve => setTimeout(resolve, ms));
@@ -120,7 +132,7 @@ export default {
         <p class="form-subtitle">游客可浏览商城，登录后解锁收藏、下单等功能。</p>
         <el-form :model="login" status-icon :rules="rules" ref="ruleForm" class="demo-ruleForm">
           <el-form-item label="用户名" prop="username" class="strong">
-            <el-input type="txt" v-model="login.username" autocomplete="off"></el-input>
+            <el-input type="text" v-model="login.username" autocomplete="off"></el-input>
           </el-form-item>
           <el-form-item label="密码" prop="password" class="strong">
             <el-input type="password" v-model="login.password" autocomplete="off" show-password></el-input>
@@ -145,7 +157,7 @@ export default {
           <el-button
             class="hypertext"
             style="padding: 0;background: none; border: none; font-size: 14px"
-            @click="()=>{this.$message.warning('请联系管理员！')}"
+            @click="() => { this.$message.warning('请联系管理员') }"
           >忘记密码?</el-button>
         </div>
       </div>

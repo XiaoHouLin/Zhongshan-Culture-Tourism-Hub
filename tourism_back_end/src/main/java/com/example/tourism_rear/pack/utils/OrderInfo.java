@@ -11,4 +11,8 @@ public class OrderInfo {
     private String cname;
     private String caddress;
     private String cremark;
+    private String pickupCode;
+    private String pickupToken;
+    private Integer pickupStatus;
+    private java.time.LocalDateTime pickupTime;
 }

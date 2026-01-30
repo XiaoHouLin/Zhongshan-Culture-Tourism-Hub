@@ -31,7 +31,11 @@
             name = #{order.cname},
             address = #{order.caddress},
             remark = #{order.cremark},
+            pickupCode = #{order.pickupCode},
+            pickupToken = #{order.pickupToken},
+            pickupStatus = #{order.pickupStatus},
+            pickupTime = #{order.pickupTime},
             CompleteDate = #{localDateTime}
-        WHERE uid = #{order.uid}
+        WHERE orderId = #{order.orderId}
     </update>
 </mapper>

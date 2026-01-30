@@ -17,4 +17,8 @@ public class OrderInfoAddDate{
     private String remark;
     private LocalDateTime CreateDate;
     private LocalDateTime CompleteDate;
+    private String pickupCode;
+    private String pickupToken;
+    private Integer pickupStatus;
+    private LocalDateTime pickupTime;
 }

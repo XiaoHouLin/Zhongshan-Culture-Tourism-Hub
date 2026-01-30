@@ -793,4 +793,15 @@ export default {
   background: rgba(31, 122, 109, 0.08);
   color: var(--ink);
 }
+
+.panel-theme ::v-deep .el-table__fixed,
+.panel-theme ::v-deep .el-table__fixed-right {
+  box-shadow: none;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.panel-theme ::v-deep .el-table__fixed-right::before,
+.panel-theme ::v-deep .el-table__fixed::before {
+  background-color: transparent;
+}
 </style>

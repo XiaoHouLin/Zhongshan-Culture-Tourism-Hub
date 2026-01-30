@@ -4,13 +4,13 @@ import loginView from "@/views/LoginView.vue";
 import registerView from "@/views/RegisterView.vue";
 import UserPanel from "@/views/UserPanel/Main.vue";
 import UserInfo from "@/views/UserPanel/UserInfo.vue";
-import Home from "@/views/UserPanel/UserHome.vue";
 import UserManagement from "@/views/UserPanel/UserManagement.vue";
 import CulturalProductShop from "@/views/UserPanel/CulturalProductShop.vue";
 import CulturalProductManagement from "@/views/UserPanel/CulturalProductManagement.vue";
 import BillPayment from "@/views/UserPanel/billPayment.vue";
 import CompleteBill from "@/views/UserPanel/CompleteBill.vue";
 import TravelPromotion from "@/views/TravelPromotion.vue";
+import PickupVerify from "@/views/PickupVerify.vue";
 import {jwtDecode} from "jwt-decode";
 
 Vue.use(VueRouter)
@@ -51,6 +51,15 @@ const router = new VueRouter({
             }
         },
         {
+            path: '/pickup-verify',
+            component: PickupVerify,
+            meta: {
+                showRouterView: true,
+                requiresAuth: true,
+                requiredRole: 1
+            }
+        },
+        {
             path: '/userPanel',
             component: UserPanel,
             meta: {
@@ -70,9 +79,10 @@ const router = new VueRouter({
                 },
                 {
                     path: '/home',
-                    component: Home,
-                    meta: {showRouterView: true,
-                           requiresAuth: true,
+                    redirect: '/userInfo',
+                    meta: {
+                        showRouterView: true,
+                        requiresAuth: true,
                         requiredRole: 3
                     },
                 },
