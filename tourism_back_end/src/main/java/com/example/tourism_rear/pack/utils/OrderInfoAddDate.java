@@ -21,4 +21,5 @@ public class OrderInfoAddDate{
     private String pickupToken;
     private Integer pickupStatus;
     private LocalDateTime pickupTime;
+    private Integer orderStatus;
 }

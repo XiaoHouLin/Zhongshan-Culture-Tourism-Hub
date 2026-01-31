@@ -13,20 +13,6 @@ const validateUsername = (rule, value, callback) => {
     callback();
   }
 };
-const validateCname = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入姓名'));
-  } else {
-    callback();
-  }
-};
-const validateCaddress = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入地址'));
-  } else {
-    callback();
-  }
-};
 const validateCphone = (rule, value, callback) => {
   if (value === '') {
     callback(new Error('请输入电话'));
@@ -34,16 +20,13 @@ const validateCphone = (rule, value, callback) => {
     callback();
   }
 };
-const validateCsymptom = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入症状'));
-  } else {
+const validateOptionalAge = (rule, value, callback) => {
+  if (value === '' || value === null || value === undefined) {
     callback();
+    return;
   }
-};
-const validateCremark = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入备注'));
+  if (!Number.isInteger(value) || value < 0) {
+    callback(new Error('年龄必须为非负整数'));
   } else {
     callback();
   }
@@ -123,6 +106,12 @@ export default {
       orderFilter: 'all',
       selectedOrder: null,
       pickupQrUrl: '',
+      statusOptions: [
+        { value: 0, label: '待支付' },
+        { value: 1, label: '待取货' },
+        { value: 2, label: '已关闭' },
+        { value: 3, label: '已完成' }
+      ],
       edit: {
         username: '',
         email: '',
@@ -145,16 +134,8 @@ export default {
           message: '请输入正确的邮箱地址',
           trigger: ['blur', 'change']
         }],
-        cname: [{required: true, message: '请输入姓名', validator: validateCname, trigger: 'blur'}],
-        cage: [{required: true, message: '年龄不能为空', trigger: 'blur'}, {
-          type: 'number',
-          message: '年龄必须为数字'
-        }],
+        cage: [{validator: validateOptionalAge, trigger: 'blur'}],
         cphone: [{required: true, message: '请输入电话', validator: validateCphone, trigger: 'blur'}],
-        csex: [{required: true, trigger: 'blur'}],
-        caddress: [{required: true, message: '请输入地址', validator: validateCaddress, trigger: 'blur'}],
-        csymptom: [{required: true, message: '请输入症状', validator: validateCsymptom, trigger: 'blur'}],
-        cremark: [{required: true, message: '请输入备注', validator: validateCremark, trigger: 'blur'}],
         oldPassword: [{required: true, validator: validateOldPass, trigger: 'blur'}],
         newPassword: [{required: true, validator: validatePass, trigger: 'blur'}],
         checkPassword: [{required: true, validator: validatePass2, trigger: 'blur'}],
@@ -175,11 +156,16 @@ export default {
     isCustomer() {
       return this.authority === 3;
     },
+    isAdmin() {
+      return this.authority === 1;
+    },
     formattedSex() {
       if (this.userInfo.csex === 'F') {
         return '男';
       } else if (this.userInfo.csex === 'M') {
         return '女';
+      } else if (this.userInfo.csex === 'U') {
+        return '不愿透露';
       } else {
         return '未知';
       }
@@ -187,9 +173,8 @@ export default {
     isEditInvalid() {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       const emailValid = !this.edit.email || emailPattern.test(this.edit.email);
-      return !this.edit.username || !this.edit.cname || !this.edit.csex ||
-        !Number.isInteger(this.edit.cage) || !this.edit.cphone || !this.edit.caddress ||
-        !this.edit.csymptom || !this.edit.cremark || !emailValid;
+      const ageValid = this.edit.cage === '' || this.edit.cage === null || Number.isInteger(this.edit.cage);
+      return !this.edit.username || !this.edit.cphone || !emailValid || !ageValid;
     },
     isPasswordInvalid() {
       return !this.edit.oldPassword || !this.edit.newPassword || !this.edit.checkPassword ||
@@ -203,12 +188,29 @@ export default {
     },
     filteredOrders() {
       if (this.orderFilter === 'completed') {
-        return this.orders.filter(order => order.completeDate);
+        return this.orders.filter(order => this.getOrderStatus(order) === 3 || order.completeDate);
       }
       if (this.orderFilter === 'pending') {
-        return this.orders.filter(order => !order.completeDate);
+        const status = order => this.getOrderStatus(order);
+        return this.orders.filter(order => [0, 1].includes(status(order)));
       }
       return this.orders;
+    },
+    detailContact() {
+      if (this.isAdmin && this.selectedOrder) {
+        return {
+          name: this.selectedOrder.name,
+          phone: this.selectedOrder.phone || this.selectedOrder.cphone,
+          address: this.selectedOrder.address,
+          remark: this.selectedOrder.remark
+        };
+      }
+      return {
+        name: this.userInfo.cname,
+        phone: this.userInfo.cphone,
+        address: this.userInfo.caddress,
+        remark: this.userInfo.cremark
+      };
     }
   },
   created() {
@@ -236,6 +238,32 @@ export default {
     },
     openEditInfo() {
       this.dialogEditInfo = true;
+    },
+    getOrderStatus(order) {
+      if (order && order.orderStatus !== undefined && order.orderStatus !== null) {
+        return Number(order.orderStatus);
+      }
+      if (order && order.pickupStatus === 1) {
+        return 3;
+      }
+      if (order && order.pickupStatus === 0) {
+        return 1;
+      }
+      if (order && order.completeDate) {
+        return 3;
+      }
+      return 0;
+    },
+    getOrderStatusLabel(status) {
+      const found = this.statusOptions.find(item => item.value === Number(status));
+      return found ? found.label : '待支付';
+    },
+    getOrderStatusTagType(status) {
+      const value = Number(status);
+      if (value === 3) return 'success';
+      if (value === 2) return 'info';
+      if (value === 1) return 'warning';
+      return 'danger';
     },
     getPickupVerifyUrl(token) {
       if (!token) {
@@ -302,6 +330,12 @@ export default {
       }
     },
     updateUserInfo() {
+      if (!this.edit.csex) {
+        this.edit.csex = 'U';
+      }
+      if (!Number.isInteger(this.edit.cage)) {
+        this.edit.cage = 0;
+      }
       apiRear.post(`/userInfo/update`, this.edit)
         .then(() => {
           this.fetchData();
@@ -323,6 +357,9 @@ export default {
       apiRear.get(`/userInfo/personal/${this.uid}`).then(res => {
         this.userInfo = res.data.data;
         this.edit = _.cloneDeep(res.data.data);
+        if (!this.edit.csex) {
+          this.edit.csex = 'U';
+        }
         this.edit.password = '';
         this.loading = false;
       }).catch(err => {
@@ -343,12 +380,53 @@ export default {
     },
     async getUserBill() {
       try {
+        if (this.isAdmin) {
+          await this.getAllOrders();
+          return;
+        }
         const info = await apiRear.get(`/order/getOrderByUID=${this.uid}`);
-        this.orders = info.data.data || [];
+        const rows = info.data.data || [];
+        this.orders = rows.map(item => ({
+          ...item,
+          orderStatus: this.getOrderStatus(item)
+        }));
         this.computeOrderStats();
         this.buildOrderTrendData();
       } catch (err) {
         this.$message.error('无法获取用户订单');
+      }
+    },
+    async getAllOrders() {
+      try {
+        const info = await apiRear.get(`/order/admin/list`);
+        const rows = info.data.data || [];
+        this.orders = rows.map(item => ({
+          ...item,
+          orderStatus: this.getOrderStatus(item)
+        }));
+        this.computeOrderStats();
+        this.buildOrderTrendData();
+      } catch (err) {
+        this.$message.error('无法获取全部订单信息');
+      }
+    },
+    async updateOrderStatus(order) {
+      const previous = order.orderStatus;
+      try {
+        const response = await apiRear.post('/order/admin/status', {
+          orderId: order.orderId,
+          orderStatus: Number(order.orderStatus)
+        });
+        if (response.data.code === 1) {
+          this.$message.success('订单状态已更新');
+          await this.getUserBill();
+        } else {
+          this.$message.error(response.data.message || '更新失败');
+          order.orderStatus = previous;
+        }
+      } catch (error) {
+        order.orderStatus = previous;
+        this.$message.error('更新失败，请稍后再试');
       }
     },
     async getOrderSummary() {
@@ -382,8 +460,8 @@ export default {
     },
     computeOrderStats() {
       const totalOrders = this.orders.length;
-      const completedOrders = this.orders.filter(order => order.completeDate).length;
-      const pendingOrders = totalOrders - completedOrders;
+      const completedOrders = this.orders.filter(order => this.getOrderStatus(order) === 3).length;
+      const pendingOrders = this.orders.filter(order => [0, 1].includes(this.getOrderStatus(order))).length;
       const lastOrder = [...this.orders].sort((a, b) => this.parseDate(b.createDate) - this.parseDate(a.createDate))[0];
       this.stats.totalOrders = totalOrders;
       this.stats.completedOrders = completedOrders;
@@ -470,6 +548,12 @@ export default {
         max-height="500"
         style="width: 100%">
         <el-table-column prop="orderId" label="订单号" sortable width="180"></el-table-column>
+        <el-table-column v-if="isAdmin" prop="username" label="用户名" width="140"></el-table-column>
+        <el-table-column v-if="isAdmin" prop="phone" label="电话" width="140">
+          <template slot-scope="scope">
+            {{ scope.row.phone || scope.row.cphone || '--' }}
+          </template>
+        </el-table-column>
         <el-table-column prop="createDate" label="创建时间" sortable></el-table-column>
         <el-table-column prop="completeDate" label="完成时间" sortable>
           <template slot-scope="scope">
@@ -479,6 +563,26 @@ export default {
         <el-table-column prop="pickupCode" label="取件码" width="120">
           <template slot-scope="scope">
             {{ scope.row.pickupCode || '--' }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="orderStatus" label="订单状态" width="140">
+          <template slot-scope="scope">
+            <el-select
+              v-if="isAdmin"
+              v-model="scope.row.orderStatus"
+              size="mini"
+              @change="() => updateOrderStatus(scope.row)"
+            >
+              <el-option
+                v-for="option in statusOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              ></el-option>
+            </el-select>
+            <el-tag v-else :type="getOrderStatusTagType(scope.row.orderStatus)">
+              {{ getOrderStatusLabel(scope.row.orderStatus) }}
+            </el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="pickupStatus" label="取货状态" width="110">
@@ -532,10 +636,10 @@ export default {
       </div>
       <el-card shadow="hover" class="tips-card">
         <p style="font-weight: bold;font-size: 18px;">其他信息：</p>
-        <p style="font-weight: bold;margin-left: 12px">姓名：{{ userInfo.cname || '暂无' }}</p>
-        <p style="font-weight: bold;margin-left: 12px">电话：{{ userInfo.cphone || '暂无' }}</p>
-        <p style="font-weight: bold;margin-left: 12px">地址：{{ userInfo.caddress || '暂无' }}</p>
-        <p style="font-weight: bold;margin-left: 12px">备注：{{ userInfo.cremark || '暂无' }}</p>
+        <p style="font-weight: bold;margin-left: 12px">姓名：{{ detailContact.name || '暂无' }}</p>
+        <p style="font-weight: bold;margin-left: 12px">电话：{{ detailContact.phone || '暂无' }}</p>
+        <p style="font-weight: bold;margin-left: 12px">地址：{{ detailContact.address || '暂无' }}</p>
+        <p style="font-weight: bold;margin-left: 12px">备注：{{ detailContact.remark || '暂无' }}</p>
       </el-card>
     </el-dialog>
     <el-dialog
@@ -574,17 +678,12 @@ export default {
             <el-radio-group v-model="edit.csex">
               <el-radio-button label="F" border>男</el-radio-button>
               <el-radio-button label="M" border>女</el-radio-button>
-              <el-radio-button label="U" border disabled>其他</el-radio-button>
+              <el-radio-button label="U" border>不愿透露</el-radio-button>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="地址" prop="caddress" :label-width="searchLabelWidth" class="strong marginWidth">
             <el-input v-model="edit.caddress" autocomplete="off" suffix-icon="el-icon-house"
                       placeholder="请输入内容"></el-input>
-          </el-form-item>
-          <el-form-item label="症状" prop="csymptom" :label-width="searchLabelWidth" class="strong marginWidth">
-            <el-input v-model="edit.csymptom" autocomplete="off" suffix-icon="el-icon-edit-outline"
-                      placeholder="请输入内容（限制100字）" type="textarea" maxlength="100" show-word-limit
-                      :autosize="{ minRows: 6, maxRows: 8}"></el-input>
           </el-form-item>
           <el-form-item label="备注" prop="cremark" :label-width="searchLabelWidth" class="strong marginWidth">
             <el-input v-model="edit.cremark" autocomplete="off" suffix-icon="el-icon-edit-outline"
@@ -707,7 +806,8 @@ export default {
         <el-descriptions-item>
           <template slot="label">
             <i v-if="userInfo.csex === 'F'" class="el-icon-male"></i>
-            <i v-else class="el-icon-female"></i>
+            <i v-else-if="userInfo.csex === 'M'" class="el-icon-female"></i>
+            <i v-else class="el-icon-user"></i>
             <span class="strong">性别</span>
           </template>
           <span class="strong">{{ formattedSex }}</span>
@@ -827,8 +927,8 @@ export default {
               <p class="order-id">订单 #{{ item.orderId }}</p>
               <p class="order-date">{{ formatDate(item.createDate) }}</p>
             </div>
-            <el-tag :type="item.completeDate ? 'success' : 'warning'">
-              {{ item.completeDate ? '已完成' : '进行中' }}
+            <el-tag :type="getOrderStatusTagType(item.orderStatus)">
+              {{ getOrderStatusLabel(item.orderStatus) }}
             </el-tag>
           </div>
           <p v-if="!recentOrders.length" class="empty-text">暂无订单记录</p>

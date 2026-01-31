@@ -4,9 +4,11 @@ import com.example.tourism_rear.mapper.CulturalProductMapper;
 import com.example.tourism_rear.mapper.OrderMapper;
 import com.example.tourism_rear.mapper.UserMapper;
 import com.example.tourism_rear.pack.utils.Order;
+import com.example.tourism_rear.pack.utils.OrderAdminView;
 import com.example.tourism_rear.pack.utils.OrderInfo;
 import com.example.tourism_rear.pack.utils.OrderInfoAddDate;
 import com.example.tourism_rear.pack.utils.OrderRequest;
+import com.example.tourism_rear.pack.utils.OrderStatusUpdate;
 import com.example.tourism_rear.pack.utils.PickupTokenUtil;
 import com.example.tourism_rear.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
@@ -37,8 +39,6 @@ public class OrderImpl implements OrderService {
 
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000;
-    private static final int EXEMPT_CARRIAGE = 60;
-    private static final int CARRIAGE_PRICE = 10;
     private static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
@@ -117,9 +117,6 @@ public class OrderImpl implements OrderService {
         LocalDateTime localDateTime = LocalDateTime.now();
         Double balance = userMapper.getBalance(uid);
         Double totalPrice = getTotalPrice(uid);
-        if (totalPrice <= EXEMPT_CARRIAGE) {
-            totalPrice += CARRIAGE_PRICE;
-        }
 
         BigDecimal balanceBD = BigDecimal.valueOf(balance);
         BigDecimal totalPriceBD = BigDecimal.valueOf(totalPrice);
@@ -156,7 +153,56 @@ public class OrderImpl implements OrderService {
     }
 
     @Override
-    public String verifyPickup(String token) {
+    public Map<String, Object> getPickupInfo(String token) {
+        PickupPayload payload = parsePickupToken(token);
+        Map<String, Object> pickupInfo = validatePickupToken(payload, token);
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(payload.orderId());
+        if (orderInfo == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        List<Order> details = orderMapper.getOrderDetail(payload.orderId());
+        Map<String, Object> result = new HashMap<>();
+        result.put("orderInfo", orderInfo);
+        result.put("orderDetails", details);
+        result.put("pickupStatus", pickupInfo.getOrDefault("pickupStatus", 0));
+        return result;
+    }
+
+    @Override
+    public String confirmPickup(String token) {
+        PickupPayload payload = parsePickupToken(token);
+        Map<String, Object> pickupInfo = validatePickupToken(payload, token);
+        Integer pickupStatus = pickupInfo.get("pickupStatus") == null ? 0 : Integer.parseInt(pickupInfo.get("pickupStatus").toString());
+        if (pickupStatus == 1) {
+            return "已取货";
+        }
+        orderMapper.markPickup(payload.orderId(), LocalDateTime.now());
+        return "已确认取货";
+    }
+
+    @Override
+    public List<OrderAdminView> listAllOrders() {
+        return orderMapper.listAllOrders();
+    }
+
+    @Override
+    public void updateOrderStatus(OrderStatusUpdate update) {
+        if (update == null || update.getOrderId() == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        int status = update.getOrderStatus() == null ? 0 : update.getOrderStatus();
+        if (status < 0 || status > 3) {
+            throw new RuntimeException("订单状态非法");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        Integer isCompleted = status == 0 ? 0 : 1;
+        Integer pickupStatus = status == 3 ? 1 : 0;
+        LocalDateTime pickupTime = status == 3 ? now : null;
+        LocalDateTime completeDate = status == 0 ? null : now;
+        orderMapper.updateOrderStatus(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate);
+    }
+
+    private PickupPayload parsePickupToken(String token) {
         String payload = pickupTokenUtil.decrypt(token);
         String[] parts = payload.split("\\|");
         if (parts.length < 2) {
@@ -164,23 +210,23 @@ public class OrderImpl implements OrderService {
         }
         Integer orderId = Integer.parseInt(parts[0]);
         String pickupCode = parts[1];
-        Map<String, Object> pickupInfo = orderMapper.getPickupInfo(orderId);
+        return new PickupPayload(orderId, pickupCode);
+    }
+
+    private Map<String, Object> validatePickupToken(PickupPayload payload, String token) {
+        Map<String, Object> pickupInfo = orderMapper.getPickupInfo(payload.orderId());
         if (pickupInfo == null || pickupInfo.isEmpty()) {
             throw new RuntimeException("订单不存在");
         }
         String storedToken = pickupInfo.get("pickupToken") == null ? "" : pickupInfo.get("pickupToken").toString();
-        Integer pickupStatus = pickupInfo.get("pickupStatus") == null ? 0 : Integer.parseInt(pickupInfo.get("pickupStatus").toString());
         String storedCode = pickupInfo.get("pickupCode") == null ? "" : pickupInfo.get("pickupCode").toString();
-
-        if (!storedToken.equals(token) || !storedCode.equals(pickupCode)) {
+        if (!storedToken.equals(token) || !storedCode.equals(payload.pickupCode())) {
             throw new RuntimeException("取件码不匹配");
         }
-        if (pickupStatus == 1) {
-            return "已取货";
-        }
-        orderMapper.markPickup(orderId, LocalDateTime.now());
-        return "已取货";
+        return pickupInfo;
     }
+
+    private record PickupPayload(Integer orderId, String pickupCode) {}
 
     private String generatePickupCode(LocalDate date) {
         LocalDateTime start = date.atStartOfDay();

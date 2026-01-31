@@ -15,4 +15,5 @@ public class OrderInfo {
     private String pickupToken;
     private Integer pickupStatus;
     private java.time.LocalDateTime pickupTime;
+    private Integer orderStatus;
 }

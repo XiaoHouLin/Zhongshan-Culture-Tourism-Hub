@@ -4,6 +4,7 @@ import com.example.tourism_rear.pack.utils.Jwt;
 import com.example.tourism_rear.pack.utils.OrderInfo;
 import com.example.tourism_rear.pack.utils.OrderInfoAddDate;
 import com.example.tourism_rear.pack.utils.OrderRequest;
+import com.example.tourism_rear.pack.utils.OrderStatusUpdate;
 import com.example.tourism_rear.pack.utils.Result;
 import com.example.tourism_rear.service.OrderService;
 import io.jsonwebtoken.Claims;
@@ -79,27 +80,64 @@ public class OrderController {
         }
     }
 
-    @GetMapping("/pickup/verify")
-    public Result verifyPickup(@RequestParam String token, HttpServletRequest request) {
+    @GetMapping("/pickup/info")
+    public Result pickupInfo(@RequestParam String token, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        try {
+            return Result.success(orderService.getPickupInfo(token));
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pickup/confirm")
+    public Result pickupConfirm(@RequestParam String token, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        try {
+            String result = orderService.confirmPickup(token);
+            return Result.success(result);
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @GetMapping("/admin/list")
+    public Result listAllOrders(HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        return Result.success(orderService.listAllOrders());
+    }
+
+    @PostMapping("/admin/status")
+    public Result updateOrderStatus(@RequestBody OrderStatusUpdate update, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        try {
+            orderService.updateOrderStatus(update);
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    private boolean isAdmin(HttpServletRequest request) {
         String jwt = request.getHeader("Authorization");
         if (jwt == null || !jwt.contains("Bearer ")) {
-            return Result.error("无权限");
+            return false;
         }
         jwt = jwt.substring(7);
         try {
             Claims claims = Jwt.checkToken(jwt);
             Object role = claims.get("authority");
-            if (role == null || Integer.parseInt(role.toString()) != 1) {
-                return Result.error("无权限");
-            }
+            return role != null && Integer.parseInt(role.toString()) == 1;
         } catch (Exception e) {
-            return Result.error("无权限");
-        }
-        try {
-            String result = orderService.verifyPickup(token);
-            return Result.success(result);
-        } catch (RuntimeException e) {
-            return Result.error(e.getMessage());
+            return false;
         }
     }
 }

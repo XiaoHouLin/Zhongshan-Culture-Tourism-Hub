@@ -80,7 +80,7 @@ export default {
       return this.authority === 3;
     },
     showCustomerTopbar() {
-      return this.isCustomer && this.$route.path !== '/userInfo';
+      return this.isCustomer && !['/userInfo', '/billPayment'].includes(this.$route.path);
     }
   }
 }

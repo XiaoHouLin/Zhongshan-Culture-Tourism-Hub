@@ -35,6 +35,7 @@
             pickupToken = #{order.pickupToken},
             pickupStatus = #{order.pickupStatus},
             pickupTime = #{order.pickupTime},
+            orderStatus = 1,
             CompleteDate = #{localDateTime}
         WHERE orderId = #{order.orderId}
     </update>

@@ -117,6 +117,9 @@ export default {
 <template>
   <div class="auth-page">
     <div class="auth-card">
+      <button class="back-button" @click="$router.push('/indexView')">
+        <i class="el-icon-arrow-left"></i>
+      </button>
       <div class="auth-aside">
         <el-image :src="url" class="auth-logo" fit="cover"></el-image>
         <h1>中山市城市文化旅游特色展示系统</h1>
@@ -188,6 +191,7 @@ export default {
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
   animation: fadeInUp 0.6s ease both;
+  position: relative;
 }
 
 .auth-aside {
@@ -261,6 +265,28 @@ export default {
   color: #5f6165;
   text-decoration: none;
   font-weight: bold;
+}
+
+.back-button {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #1f7a6d;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(31, 56, 94, 0.2);
+  z-index: 2;
+}
+
+.back-button:hover {
+  background: #17675d;
 }
 
 @keyframes fadeInUp {

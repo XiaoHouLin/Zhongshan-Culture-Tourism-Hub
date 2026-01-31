@@ -31,34 +31,6 @@ export default {
         callback();
       }
     };
-    const validatePersonalName = (rule, value, callback) => {
-      if (value === '') {
-        callback(new Error('请输入姓名'));
-      } else {
-        callback();
-      }
-    };
-    const validateSex = (rule, value, callback) => {
-      if (value === '') {
-        callback(new Error('请选择性别'));
-      } else {
-        callback();
-      }
-    };
-    const validateChinaArea = (rule, value, callback) => {
-      if (value === null || value.length === 0) {
-        callback(new Error('请选择中国大陆地区'));
-      } else {
-        callback();
-      }
-    };
-    const validateAddress = (rule, value, callback) => {
-      if (value === '') {
-        callback(new Error('请输入详细住址'));
-      } else {
-        callback();
-      }
-    };
     const validateTelephone = (rule, value, callback) => {
       if (value === '') {
         callback(new Error('请输入电话'));
@@ -75,7 +47,7 @@ export default {
         pass: '',
         checkPass: '',
         personalName: '',
-        sex: '',
+        sex: 'U',
         email: '',
         age: '',
         chinaArea: [],
@@ -97,10 +69,6 @@ export default {
         username: [{required: true, validator: validateUsername, trigger: 'blur'}],
         pass: [{required: true, validator: validatePass, trigger: 'blur'}],
         checkPass: [{required: true, validator: validatePass2, trigger: 'blur'}],
-        personalName: [{required: true, message: '请输入姓名', validator: validatePersonalName, trigger: 'blur'}],
-        sex: [{required: true, message: '请选择性别', validator: validateSex, trigger: 'blur'}],
-        chinaArea: [{required: true, message: '请选择中国大陆地区', validator: validateChinaArea, trigger: 'blur'}],
-        address: [{required: true, message: '请输入详细住址', validator: validateAddress, trigger: 'blur'}],
         telephone: [{required: true, message: '请输入电话', validator: validateTelephone, trigger: 'blur'}],
         email: [{message: '请输入邮箱地址', trigger: 'blur'}, {
           type: 'email',
@@ -115,10 +83,13 @@ export default {
   computed: {
     isLoginInvalid() {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-      return !this.register.username ||  this.register.pass !== this.register.checkPass
-          || !this.register.personalName || !this.register.sex
-          || !Number.isInteger(this.register.age) || this.register.age < 0
-          || !this.register.chinaArea || !this.register.address || !this.register.telephone|| !this.register.chinaArea || !this.register.address || !this.register.telephone
+      const ageValid =
+        this.register.age === '' ||
+        this.register.age === null ||
+        (Number.isInteger(this.register.age) && this.register.age >= 0);
+      return !this.register.username || this.register.pass !== this.register.checkPass
+          || !this.register.telephone
+          || !ageValid
           || (this.register.email && !emailPattern.test(this.register.email));
     }
   },
@@ -130,11 +101,18 @@ export default {
       this.isLoading = true;
       this.info.username = this.register.username;
       this.info.password = this.register.pass;
-      this.info.cname = this.register.personalName;
-      this.info.csex = this.register.sex;
+      this.info.cname = this.register.personalName || '';
+      this.info.csex = this.register.sex || 'U';
       this.info.email = this.register.email;
-      this.info.cage = this.register.age;
-      this.info.caddress = this.register.chinaArea + this.register.address;
+      this.info.cage = Number.isInteger(this.register.age) ? this.register.age : 0;
+      const addressParts = [];
+      if (this.register.chinaArea) {
+        addressParts.push(this.register.chinaArea);
+      }
+      if (this.register.address) {
+        addressParts.push(this.register.address);
+      }
+      this.info.caddress = addressParts.join('');
       this.info.cphone = this.register.telephone;
       try {
         const response = await apiRear.post(`/isUnique/${this.info.username}`);
@@ -167,8 +145,7 @@ export default {
       });
     },
     updateSex(formName) {
-      this.$refs[formName].validateField("sex", () => {
-      });
+      this.$refs[formName].validateField("sex", () => {});
     }
   },
 }
@@ -177,6 +154,9 @@ export default {
 <template>
   <div class="auth-page">
     <div class="auth-card">
+      <button class="back-button" @click="$router.push('/indexView')">
+        <i class="el-icon-arrow-left"></i>
+      </button>
       <div class="auth-aside">
         <el-image :src="url" class="auth-logo" fit="cover"></el-image>
         <h1>中山市城市文化旅游特色展示系统</h1>
@@ -216,6 +196,7 @@ export default {
                 <el-radio-group v-model="register.sex" @change="updateSex('ruleForm')">
                   <el-radio label="M" border>男</el-radio>
                   <el-radio label="F" border>女</el-radio>
+                  <el-radio label="U" border>不愿透露</el-radio>
                 </el-radio-group>
               </el-form-item>
             </div>
@@ -223,12 +204,7 @@ export default {
               <el-form-item label="姓名" prop="personalName" class="strong">
                 <el-input type="txt" v-model="register.personalName" autocomplete="off"></el-input>
               </el-form-item>
-              <el-form-item label="年龄" prop="age" class="strong"
-                            :rules="[
-                        { required: true, message: '年龄不能为空', trigger: 'blur'},
-                        { type: 'number', message: '年龄必须为数字值'}
-                      ]"
-              >
+              <el-form-item label="年龄" prop="age" class="strong">
                 <el-input v-model.number="register.age" autocomplete="off"></el-input>
               </el-form-item>
               <el-form-item label="地址" prop="chinaArea" class="strong">
@@ -256,7 +232,6 @@ export default {
         </el-form>
         <div class="form-footer">
           <router-link class="hypertext" to="/login" active-class="active">登录</router-link>
-          <router-link class="hypertext" to="/" active-class="active">返回主页</router-link>
         </div>
       </div>
     </div>
@@ -286,6 +261,7 @@ export default {
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
   animation: fadeInUp 0.6s ease both;
+  position: relative;
 }
 
 .auth-aside {
@@ -395,6 +371,28 @@ export default {
   justify-content: space-between;
   align-items: center;
   margin-top: 6px;
+}
+
+.back-button {
+  position: absolute;
+  top: 18px;
+  left: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #1f7a6d;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(31, 56, 94, 0.2);
+  z-index: 2;
+}
+
+.back-button:hover {
+  background: #17675d;
 }
 
 .strong {

@@ -119,6 +119,9 @@ export default {
     isLoggedIn() {
       return Boolean(sessionStorage.getItem('token'));
     },
+    isPanelRoute() {
+      return this.$route.path.startsWith('/userPanel');
+    },
     filteredTableData() {
       const data = [...this.tableData];
       const normalizeNumber = value => {
@@ -160,9 +163,28 @@ export default {
         imageUrl: this.images[(index % this.images.length)]
       }));
     },
+    cartItemsDetailed() {
+      return this.shoppingCart.map((item, index) => {
+        const matched = this.tableDataWithImages.find(product => product.productCode === item.productCode);
+        const imageIndex = this.getImageIndex(item.productCode, index);
+        return {
+          ...item,
+          imageUrl: matched ? matched.imageUrl : this.images[imageIndex],
+          stock: matched && typeof matched.stock !== 'undefined' ? matched.stock : null
+        };
+      });
+    }
   },
   methods: {
     toInteger,
+    getImageIndex(code, fallbackIndex) {
+      const text = String(code || fallbackIndex || '');
+      let hash = 0;
+      for (let i = 0; i < text.length; i++) {
+        hash = (hash + text.charCodeAt(i)) % this.images.length;
+      }
+      return hash;
+    },
     getUidFromToken() {
       const token = sessionStorage.getItem('token');
       return token ? jwtDecode(token).uid : null;
@@ -265,6 +287,9 @@ export default {
       }
       if (this.shoppingCart.length <= 0) {
         this.$message.error('购物车为空！');
+        return;
+      }
+      if (!this.validateCartBeforeCheckout()) {
         return;
       }
       this.loading = true;
@@ -419,6 +444,9 @@ export default {
         this.requireLogin('下单');
         return;
       }
+      if (!this.isValidQuantity(this.purchaseQuantity, this.maxAvailableStock)) {
+        return;
+      }
       const purchasedProducts = this.shoppingCart.find(item => item.productCode === this.tableData[this.productIndex].productCode);
       if (purchasedProducts != null) {
         if (this.tableData[this.productIndex].stock - purchasedProducts.purchaseNum - this.purchaseQuantity < 0) {
@@ -450,6 +478,31 @@ export default {
       this.cartTotal = this.shoppingCart.reduce((total, item) => {
         return parseFloat((total + item.purchaseNum * item.price).toFixed(2));
       }, 0);
+    },
+    updateCartQuantity(item, value) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('管理购物车');
+        return;
+      }
+      const quantity = Number(value);
+      const stock = this.getCartStock(item.productCode);
+      if (!this.isValidQuantity(quantity, stock)) {
+        return;
+      }
+      const target = this.shoppingCart.find(cartItem => cartItem.productCode === item.productCode);
+      if (!target) {
+        return;
+      }
+      target.purchaseNum = quantity;
+      this.updateCartTotal();
+      localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+    },
+    getCartStock(productCode) {
+      const product = this.tableDataWithImages.find(item => item.productCode === productCode);
+      if (!product || typeof product.stock === 'undefined') {
+        return null;
+      }
+      return product.stock;
     },
     removeFromCart(productCode, productName) {
       if (!this.isLoggedIn) {
@@ -484,19 +537,18 @@ export default {
         closeOnClickModal: false
       }).then(({value}) => {
         const purchasedDrug = this.shoppingCart.find(item => item.productCode === productCode);
-        if (this.tableData[this.productIndex].stock < value) {
-          this.$message.error('购买数量不能大于剩余数量');
-        } else if (value === '0') {
-          this.removeFromCart(productCode, productName);
-        } else {
-          purchasedDrug.purchaseNum = value;
-          this.updateCartTotal();
-          localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
-          this.$message({
-            type: 'success',
-            message: '『' + productName + '』' + '数量已修改为：' + value
-          });
+        const stock = this.getCartStock(productCode);
+        const quantity = Number(value);
+        if (!this.isValidQuantity(quantity, stock)) {
+          return;
         }
+        purchasedDrug.purchaseNum = quantity;
+        this.updateCartTotal();
+        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+        this.$message({
+          type: 'success',
+          message: '『' + productName + '』' + '数量已修改为：' + quantity
+        });
       }).catch(() => {
         this.$message({
           type: 'info',
@@ -510,6 +562,58 @@ export default {
         return;
       }
       this.shoppingDrawer = true;
+    },
+    validateCartBeforeCheckout() {
+      for (const item of this.shoppingCart) {
+        const stock = this.getCartStock(item.productCode);
+        const quantity = Number(item.purchaseNum);
+        if (!this.isValidQuantity(quantity, stock)) {
+          return false;
+        }
+      }
+      return true;
+    },
+    async clearCart() {
+      if (!this.isLoggedIn) {
+        this.requireLogin('管理购物车');
+        return;
+      }
+      if (!this.shoppingCart.length) {
+        this.$message.info('购物车已为空');
+        return;
+      }
+      this.$confirm('确定要清空购物车吗？', '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }).then(() => {
+        this.shoppingCart = [];
+        this.cartTotal = 0;
+        localStorage.removeItem('shoppingCart');
+        if (Array.isArray(this.orderId) && this.orderId.length) {
+          apiRear.post('/order/update', {
+            uid: this.userInfo.uid,
+            orderId: this.orderId.at(0),
+            totalProductPrice: 0,
+            shoppingCart: []
+          }).finally(() => {
+            this.$message.success('购物车已清空');
+          });
+        } else {
+          this.$message.success('购物车已清空');
+        }
+      }).catch(() => {});
+    },
+    isValidQuantity(quantity, stock) {
+      if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+        this.$message.error('购买数量必须为正整数');
+        return false;
+      }
+      if (stock !== null && quantity > stock) {
+        this.$message.error('购买数量不能大于剩余数量');
+        return false;
+      }
+      return true;
     }
   },
 };
@@ -517,7 +621,7 @@ export default {
 
 
 <template>
-  <el-container class="shop-layout">
+  <el-container class="shop-layout" :class="{ 'with-aside': isPanelRoute }">
     <el-main class="shop-main">
       <div class="shop-top-grid">
         <el-card shadow="hover" class="border shop-top-card shop-top-card--search">
@@ -626,6 +730,7 @@ export default {
                   v-model="purchaseQuantity"
                   :min="1"
                   :precision="0"
+                  :step="1"
                   :max="maxAvailableStock"
                   @input="updateCurrentProductTotal"
                   label="购买数量">
@@ -646,35 +751,73 @@ export default {
             title="购物车"
             :visible.sync="shoppingDrawer"
             :direction="direction"
-            size="40%"
+            size="45%"
         >
-          <el-card shadow="always" class="center" style="margin: 10px">
-            <el-table :data="shoppingCart" v-loading="loading" height="780">
-              <el-table-column label="产品编号" prop="productCode" width="110%"></el-table-column>
-              <el-table-column label="名称" prop="productName" width="130%"></el-table-column>
-              <el-table-column label="数量" prop="purchaseNum" width="130%"></el-table-column>
-              <el-table-column label="单价" prop="price" width="130%"></el-table-column>
-              <el-table-column
-                  fixed="right"
-                  label="操作"
-                  width="100">
-                <template slot-scope="scope">
-                  <el-button @click="editCartItem(scope.row.productCode,scope.row.productName,scope.row.purchaseNum)"
-                             type="text"
-                             :underline="true"
-                             size="small">
-                    修改
-                  </el-button>
-                  <el-button @click="removeFromCart(scope.row.productCode,scope.row.productName)"
-                             type="text"
-                             size="small"
-                             :style="{color: dangerColor}">
-                    删除
-                  </el-button>
-                </template>
-              </el-table-column>
-            </el-table>
-          </el-card>
+          <div class="cart-drawer">
+            <div class="cart-header">
+              <div>
+                <h3>购物车</h3>
+                <p>共 {{ shoppingCart.length }} 件商品</p>
+              </div>
+              <el-button type="text" class="clear-cart-btn" @click="clearCart">一键清空</el-button>
+            </div>
+            <el-empty v-if="!cartItemsDetailed.length" description="购物车暂时为空"></el-empty>
+            <div v-else class="cart-list">
+              <el-card
+                v-for="item in cartItemsDetailed"
+                :key="item.productCode"
+                shadow="hover"
+                class="cart-item-card"
+              >
+                <div class="cart-item">
+                  <img :src="item.imageUrl" :alt="item.productName" class="cart-item-image" />
+                  <div class="cart-item-info">
+                    <div class="cart-item-title">
+                      <span>{{ item.productName }}</span>
+                      <span class="cart-item-code">编号 {{ item.productCode }}</span>
+                    </div>
+                    <div class="cart-item-meta">
+                      <span>单价：￥{{ Number(item.price).toFixed(2) }}</span>
+                      <span v-if="item.stock !== null">库存：{{ item.stock }}</span>
+                    </div>
+                    <div class="cart-item-actions">
+                      <el-input-number
+                        :min="1"
+                        :max="item.stock || inputLimit"
+                        :step="1"
+                        :precision="0"
+                        :value="Number(item.purchaseNum)"
+                        size="mini"
+                        @change="value => updateCartQuantity(item, value)"
+                      ></el-input-number>
+                      <div class="cart-item-subtotal">
+                        小计 ￥{{ (item.purchaseNum * item.price).toFixed(2) }}
+                      </div>
+                      <el-button
+                        type="text"
+                        size="mini"
+                        :style="{color: dangerColor}"
+                        @click="removeFromCart(item.productCode, item.productName)"
+                      >
+                        删除
+                      </el-button>
+                    </div>
+                  </div>
+                </div>
+              </el-card>
+            </div>
+            <div class="cart-footer-actions">
+              <div class="cart-footer-total">合计：￥{{ cartTotal.toFixed(2) }}</div>
+              <el-button
+                type="primary"
+                icon="el-icon-s-order"
+                :disabled="!cartItemsDetailed.length"
+                @click="handlePay(true)"
+              >
+                去结算
+              </el-button>
+            </div>
+          </div>
         </el-drawer>
         <div style="width: 100%;display: flex;overflow: hidden">
           <el-card v-loading="loading" shadow="hover" style="width: 90%;margin-right: 2%" class="border">
@@ -791,29 +934,23 @@ export default {
           </div>
         </div>
         <div class="footer-bar">
-          <div style="display: flex">
+          <div class="footer-cart">
             <el-badge :value="shoppingCart.length" class="item" style="padding: 0">
               <el-button
-                  icon="el-icon-shopping-cart-full"
-                  style="
-                    width: 45px;
-                    height: 45px;
-                    margin-left: 20px;
-                    color: white;
-                    background-color: #409EFF"
-                  @click="handleOpenCart"
-                  circle></el-button>
+                icon="el-icon-shopping-cart-full"
+                class="cart-fab"
+                @click="handleOpenCart"
+                circle
+              ></el-button>
             </el-badge>
-            <div style="color: #409EFF">
-              <span class="strong" style="margin-left: 20px">
-                ￥：</span>
-              <span class="strong" style="font-size: 200%">{{ cartTotal.toFixed(2) }}
-              </span>
+            <div class="footer-cart-info">
+              <span class="footer-cart-label">购物车 · {{ shoppingCart.length }} 件</span>
+              <span class="footer-cart-total">￥{{ cartTotal.toFixed(2) }}</span>
             </div>
           </div>
           <el-button
               type="primary"
-              style="width: 10%;margin-right: 30px"
+              class="checkout-btn"
               @click="handlePay(true)"
               round>立即结算
           </el-button>
@@ -988,13 +1125,174 @@ export default {
   z-index: 1000;
   position: fixed;
   bottom: 0;
-  left: 200px;
-  width: calc(100% - 200px);
+  left: 0;
+  width: 100%;
   background: rgba(255, 255, 255, 0.92);
   justify-content: space-between;
-  padding: 10px 0;
-  box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1); /* 添加阴影效果 */
+  padding: 12px 24px;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(6px);
+  align-items: center;
+}
+
+.shop-layout.with-aside .footer-bar {
+  left: 200px;
+  width: calc(100% - 200px);
+}
+
+.footer-cart {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.cart-fab {
+  width: 46px;
+  height: 46px;
+  color: #ffffff;
+  background: linear-gradient(135deg, #1f7a6d, #c75a31);
+  border: none;
+}
+
+.footer-cart-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--ink);
+}
+
+.footer-cart-label {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.footer-cart-total {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.checkout-btn {
+  min-width: 140px;
+}
+
+.clear-cart-btn {
+  color: #e83a3a;
+  font-weight: 600;
+}
+
+.cart-item-code {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.cart-footer-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.cart-footer-total {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.cart-drawer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 16px;
+  padding: 12px 8px 20px;
+}
+
+.cart-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.cart-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.cart-header p {
+  margin: 4px 0 0;
+  color: #5f6b66;
+  font-size: 13px;
+}
+
+.cart-total {
+  font-size: 16px;
+  color: var(--accent);
+}
+
+.cart-list {
+  padding-right: 6px;
+  max-height: calc(100vh - 280px);
+  overflow: auto;
+}
+
+.cart-item-card {
+  border-radius: 16px;
+  margin-bottom: 14px;
+}
+
+.cart-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.cart-item-image {
+  width: 90px;
+  height: 90px;
+  border-radius: 12px;
+  object-fit: cover;
+  background: rgba(31, 122, 109, 0.08);
+}
+
+.cart-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.cart-item-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.cart-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  color: var(--ink-soft);
+  font-size: 13px;
+}
+
+.cart-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.cart-item-subtotal {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.cart-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
 }
 
 .card-image-container {

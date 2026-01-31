@@ -18,7 +18,7 @@ import java.util.Map;
 public interface OrderMapper {
 
     // 添加订单
-    @Insert("INSERT INTO `order`(uid, CreateDate, totalPrice, isCompleted) VALUES (#{order.uid},#{localDateTime},#{order.totalProductPrice},false)")
+    @Insert("INSERT INTO `order`(uid, CreateDate, totalPrice, isCompleted, orderStatus) VALUES (#{order.uid},#{localDateTime},#{order.totalProductPrice},false,0)")
     @Options(useGeneratedKeys = true, keyProperty = "order.orderId", keyColumn = "orderId")
     void addOrder(OrderRequest order, LocalDateTime localDateTime);
 
@@ -31,6 +31,17 @@ public interface OrderMapper {
 
     @Select("SELECT * FROM `order` WHERE uid = #{uid}")
     List<OrderInfoAddDate> listOrders(Integer uid);
+
+    @Select("SELECT * FROM `order` WHERE orderId = #{orderId}")
+    OrderInfoAddDate getOrderInfoById(Integer orderId);
+
+    @Select("SELECT o.orderId, o.uid, u.username, COALESCE(o.phone, c.cphone) AS phone, o.email, o.name, o.address, o.remark, " +
+            "o.CreateDate, o.CompleteDate, o.pickupCode, o.pickupStatus, o.pickupTime, o.orderStatus " +
+            "FROM `order` o " +
+            "LEFT JOIN user u ON o.uid = u.uid " +
+            "LEFT JOIN client c ON o.uid = c.uid " +
+            "ORDER BY o.CreateDate DESC")
+    List<com.example.tourism_rear.pack.utils.OrderAdminView> listAllOrders();
 
     // 查询订单总价
     @Select("SELECT totalPrice FROM `order` WHERE uid = #{uid} and isCompleted = 0")
@@ -65,8 +76,11 @@ public interface OrderMapper {
     @Select("SELECT pickupToken, pickupStatus, pickupCode FROM `order` WHERE orderId = #{orderId}")
     Map<String, Object> getPickupInfo(Integer orderId);
 
-    @Update("UPDATE `order` SET pickupStatus = 1, pickupTime = #{pickupTime} WHERE orderId = #{orderId}")
+    @Update("UPDATE `order` SET pickupStatus = 1, pickupTime = #{pickupTime}, isCompleted = 1, CompleteDate = #{pickupTime}, orderStatus = 3 WHERE orderId = #{orderId}")
     void markPickup(Integer orderId, LocalDateTime pickupTime);
+
+    @Update("UPDATE `order` SET orderStatus = #{orderStatus}, isCompleted = #{isCompleted}, pickupStatus = #{pickupStatus}, pickupTime = #{pickupTime}, CompleteDate = #{completeDate} WHERE orderId = #{orderId}")
+    void updateOrderStatus(Integer orderId, Integer orderStatus, Integer isCompleted, Integer pickupStatus, LocalDateTime pickupTime, LocalDateTime completeDate);
 
     // 删除订单
     void deleteOrder(List<Integer> orderId);
