@@ -2,6 +2,7 @@ package com.example.tourism_rear.controller;
 
 import com.example.tourism_rear.pack.pagination.PageBean;
 import com.example.tourism_rear.pack.utils.EditUser;
+import com.example.tourism_rear.pack.utils.PasswordChangeRequest;
 import com.example.tourism_rear.service.UserService;
 import com.example.tourism_rear.pack.utils.UserInfo;
 import com.example.tourism_rear.pack.utils.Result;
@@ -26,7 +27,7 @@ public class UserController {
      */
     @PostMapping("/insert")
     public Result userInfo(@RequestBody UserInfo userInfo) {
-        log.info("添加一个用户：{}", userInfo);
+        log.info("添加一个用户：{}", userInfo.getUsername());
         userService.addUserInfo(userInfo);
         return Result.success();
     }
@@ -127,10 +128,15 @@ public class UserController {
      * 修改密码
      * @author : 🐒
      */
-    @PostMapping("/updatePassword/{uid}&{oldPassword}&{newPassword}")
-    public Result updatePassword(@PathVariable Integer uid, @PathVariable String oldPassword, @PathVariable String newPassword) {
-        log.info("用户{}修改密码，旧密码为：{}，新密码为：{}", uid, oldPassword, newPassword);
-        if (userService.updatePassword(uid, oldPassword, newPassword)) return Result.success();
-        else return Result.error("原密码错误");
+    @PostMapping("/updatePassword")
+    public Result updatePassword(@RequestBody PasswordChangeRequest request) {
+        Integer uid = request.getUid();
+        String oldPassword = request.getOldPassword();
+        String newPassword = request.getNewPassword();
+        log.info("用户{}修改密码", uid);
+        if (userService.updatePassword(uid, oldPassword, newPassword)) {
+            return Result.success();
+        }
+        return Result.error("原密码错误");
     }
 }

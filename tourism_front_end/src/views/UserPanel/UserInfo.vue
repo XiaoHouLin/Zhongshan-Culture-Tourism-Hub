@@ -103,9 +103,28 @@ export default {
         columns: ['month', 'orders'],
         rows: []
       },
+      pieSettings: {
+        radius: 90,
+        offsetY: 0
+      },
+      pieExtend: {
+        legend: {
+          orient: 'vertical',
+          right: 0,
+          top: 'center'
+        },
+        animationDuration: 1200,
+        animationEasing: 'cubicOut'
+      },
       orderFilter: 'all',
+      orderSearch: {
+        keyword: '',
+        status: 'all',
+        dateRange: []
+      },
       selectedOrder: null,
       pickupQrUrl: '',
+      selectedOrderIds: [],
       statusOptions: [
         { value: 0, label: '待支付' },
         { value: 1, label: '待取货' },
@@ -187,14 +206,49 @@ export default {
       return sorted.slice(0, 4);
     },
     filteredOrders() {
+      let data = [...this.orders];
+      if (this.isAdmin) {
+        const keyword = (this.orderSearch.keyword || '').trim().toLowerCase();
+        if (keyword) {
+          data = data.filter(order => {
+            const fields = [
+              order.orderId,
+              order.username,
+              order.phone,
+              order.cphone,
+              order.pickupCode
+            ];
+            return fields.some(field => field !== undefined && field !== null
+              && String(field).toLowerCase().includes(keyword));
+          });
+        }
+        if (this.orderSearch.status !== 'all' && this.orderSearch.status !== '' && this.orderSearch.status !== null) {
+          const statusValue = Number(this.orderSearch.status);
+          data = data.filter(order => this.getOrderStatus(order) === statusValue);
+        }
+        if (Array.isArray(this.orderSearch.dateRange) && this.orderSearch.dateRange.length === 2) {
+          const [start, end] = this.orderSearch.dateRange;
+          const startTime = start ? new Date(start).getTime() : null;
+          const endTime = end ? new Date(end).getTime() : null;
+          data = data.filter(order => {
+            const date = this.parseDate(order.createDate);
+            if (!date) return false;
+            const time = date.getTime();
+            if (startTime && time < startTime) return false;
+            if (endTime && time > endTime) return false;
+            return true;
+          });
+        }
+        return data;
+      }
       if (this.orderFilter === 'completed') {
-        return this.orders.filter(order => this.getOrderStatus(order) === 3 || order.completeDate);
+        return data.filter(order => this.getOrderStatus(order) === 3 || order.completeDate);
       }
       if (this.orderFilter === 'pending') {
         const status = order => this.getOrderStatus(order);
-        return this.orders.filter(order => [0, 1].includes(status(order)));
+        return data.filter(order => [0, 1].includes(status(order)));
       }
-      return this.orders;
+      return data;
     },
     detailContact() {
       if (this.isAdmin && this.selectedOrder) {
@@ -236,8 +290,89 @@ export default {
       this.orderFilter = filter || 'all';
       this.dialog_bill = true;
     },
+    checkAutoOpenDialogs() {
+      const openOrders = sessionStorage.getItem('openOrders');
+      if (openOrders) {
+        sessionStorage.removeItem('openOrders');
+        this.openOrderDialog('all');
+      }
+      const detailId = sessionStorage.getItem('openOrderDetailId');
+      if (detailId) {
+        sessionStorage.removeItem('openOrderDetailId');
+        this.orderDetail_handle(Number(detailId));
+      }
+    },
     openEditInfo() {
       this.dialogEditInfo = true;
+    },
+    handleOrderSelectionChange(selection) {
+      this.selectedOrderIds = selection.map(item => item.orderId);
+    },
+    async confirmDeleteOrders(orderIds) {
+      if (!orderIds || !orderIds.length) {
+        this.$message.info('请选择需要删除的订单');
+        return;
+      }
+      try {
+        await this.$confirm('删除订单后将无法恢复，是否继续？', '确认删除', {
+          confirmButtonText: '确认删除',
+          cancelButtonText: '取消',
+          type: 'warning'
+        });
+        await apiRear.post('/order/delete', orderIds);
+        this.$message.success('订单已删除');
+        this.selectedOrderIds = [];
+        await this.getUserBill();
+      } catch (error) {
+        if (error !== 'cancel' && error !== 'close') {
+          this.$message.error('删除失败，请稍后再试');
+        }
+      }
+    },
+    deleteSingleOrder(orderId) {
+      this.confirmDeleteOrders([orderId]);
+    },
+    resetOrderSearch() {
+      this.orderSearch.keyword = '';
+      this.orderSearch.status = 'all';
+      this.orderSearch.dateRange = [];
+    },
+    exportOrders() {
+      const rows = this.filteredOrders;
+      if (!rows.length) {
+        this.$message.info('没有可导出的订单');
+        return;
+      }
+      const headers = ['订单号', '用户名', '电话', '创建时间', '完成时间', '取件码', '订单状态', '取货状态'];
+      const toCsvValue = value => {
+        const text = value === undefined || value === null ? '' : String(value);
+        if (text.includes(',') || text.includes('"') || text.includes('\n')) {
+          return '"' + text.replace(/"/g, '""') + '"';
+        }
+        return text;
+      };
+      const lines = rows.map(order => {
+        return [
+          order.orderId,
+          order.username || '',
+          order.phone || order.cphone || '',
+          order.createDate || '',
+          order.completeDate || '',
+          order.pickupCode || '',
+          this.getOrderStatusLabel(this.getOrderStatus(order)),
+          order.pickupStatus ? '已取货' : '待取货'
+        ].map(toCsvValue).join(',');
+      });
+      const csv = ['\ufeff' + headers.join(',')].concat(lines).join('\n');
+      const blob = new Blob([csv], {type: 'text/csv;charset=utf-8;'});
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `orders_${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
     },
     getOrderStatus(order) {
       if (order && order.orderStatus !== undefined && order.orderStatus !== null) {
@@ -311,7 +446,11 @@ export default {
       this.dialogUpdatePassword = false;
     },
     async updatePassword() {
-      const response = await apiRear.post(`/userInfo/updatePassword/${this.uid}&${this.edit.oldPassword}&${this.edit.newPassword}`);
+      const response = await apiRear.post('/userInfo/updatePassword', {
+        uid: this.uid,
+        oldPassword: this.edit.oldPassword,
+        newPassword: this.edit.newPassword
+      });
       if (response.data.code === 1) {
         this.$message({
           type: 'success',
@@ -392,6 +531,7 @@ export default {
         }));
         this.computeOrderStats();
         this.buildOrderTrendData();
+        this.checkAutoOpenDialogs();
       } catch (err) {
         this.$message.error('无法获取用户订单');
       }
@@ -406,6 +546,7 @@ export default {
         }));
         this.computeOrderStats();
         this.buildOrderTrendData();
+        this.checkAutoOpenDialogs();
       } catch (err) {
         this.$message.error('无法获取全部订单信息');
       }
@@ -520,6 +661,9 @@ export default {
 
 <template>
   <div class="panel-theme user-info">
+    <button v-if="isCustomer" class="back-button" @click="goHome">
+      <i class="el-icon-arrow-left"></i>
+    </button>
     <el-dialog
       title="通过支付宝充值"
       :visible.sync="dialog_zfb"
@@ -541,12 +685,46 @@ export default {
       :visible.sync="dialog_bill"
       center
       width="60%">
+      <div v-if="isAdmin" class="order-admin-toolbar">
+        <el-input
+          v-model="orderSearch.keyword"
+          placeholder="订单号/用户名/电话/取件码"
+          clearable
+          class="order-search-input"
+        ></el-input>
+        <el-select v-model="orderSearch.status" placeholder="订单状态" class="order-search-select">
+          <el-option label="全部状态" value="all"></el-option>
+          <el-option
+            v-for="option in statusOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          ></el-option>
+        </el-select>
+        <el-date-picker
+          v-model="orderSearch.dateRange"
+          type="daterange"
+          range-separator="至"
+          start-placeholder="开始日期"
+          end-placeholder="结束日期"
+          class="order-search-date"
+        ></el-date-picker>
+        <el-button @click="resetOrderSearch">重置</el-button>
+        <el-button type="primary" icon="el-icon-download" @click="exportOrders">导出</el-button>
+      </div>
+      <div v-if="isCustomer" class="order-dialog-actions">
+        <el-button type="danger" icon="el-icon-delete" size="mini" @click="confirmDeleteOrders(selectedOrderIds)">
+          删除所选
+        </el-button>
+      </div>
       <el-table
         :data="filteredOrders"
         stripe
         height="500"
         max-height="500"
-        style="width: 100%">
+        style="width: 100%"
+        @selection-change="handleOrderSelectionChange">
+        <el-table-column v-if="isCustomer" type="selection" width="55"></el-table-column>
         <el-table-column prop="orderId" label="订单号" sortable width="180"></el-table-column>
         <el-table-column v-if="isAdmin" prop="username" label="用户名" width="140"></el-table-column>
         <el-table-column v-if="isAdmin" prop="phone" label="电话" width="140">
@@ -595,6 +773,13 @@ export default {
         <el-table-column fixed="right" label="操作" width="100">
           <template slot-scope="scope">
             <el-button @click="orderDetail_handle(scope.row)" type="text" size="small">查看详情</el-button>
+            <el-button
+              v-if="isCustomer"
+              @click="deleteSingleOrder(scope.row.orderId)"
+              type="text"
+              size="small"
+              :style="{color: dangerColor}"
+            >删除</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -744,9 +929,6 @@ export default {
           <el-button type="primary" icon="el-icon-lock" @click="dialogUpdatePassword = true" round>
             修改密码
           </el-button>
-          <el-button v-if="isCustomer" type="default" icon="el-icon-back" @click="goHome" round>
-            返回首页
-          </el-button>
         </div>
       </div>
       <el-divider></el-divider>
@@ -874,12 +1056,12 @@ export default {
         <div class="stat-value">{{ stats.totalOrders }}</div>
         <div class="stat-foot">最近下单 {{ stats.lastOrderDate || '暂无' }}</div>
       </div>
-      <div class="stat-card panel-card clickable" @click="openOrderDialog('completed')">
+      <div v-if="isAdmin" class="stat-card panel-card clickable" @click="openOrderDialog('completed')">
         <div class="stat-label">已完成</div>
         <div class="stat-value">{{ stats.completedOrders }}</div>
         <div class="stat-foot">完成率 {{ stats.totalOrders ? Math.round(stats.completedOrders / stats.totalOrders * 100) : 0 }}%</div>
       </div>
-      <div class="stat-card panel-card clickable" @click="openOrderDialog('pending')">
+      <div v-if="isAdmin" class="stat-card panel-card clickable" @click="openOrderDialog('pending')">
         <div class="stat-label">待处理</div>
         <div class="stat-value">{{ stats.pendingOrders }}</div>
         <div class="stat-foot">待发货 / 待确认</div>
@@ -897,7 +1079,7 @@ export default {
     </section>
 
     <section class="dashboard-grid">
-      <el-card shadow="hover" class="panel-card chart-card">
+      <el-card v-if="isAdmin" shadow="hover" class="panel-card chart-card">
         <div class="card-header">
           <h3>近 6 个月订单趋势</h3>
           <span>订单数量</span>
@@ -909,7 +1091,13 @@ export default {
           <h3>文创品类偏好</h3>
           <span>按购买次数</span>
         </div>
-        <ve-pie :data="categoryPieData" :height="'300px'"></ve-pie>
+        <ve-pie
+          :data="categoryPieData"
+          :height="'300px'"
+          :settings="pieSettings"
+          :extend="pieExtend"
+          :legend-visible="true"
+        ></ve-pie>
       </el-card>
       <el-card shadow="hover" class="panel-card chart-card order-list-card">
         <div class="card-header">
@@ -949,18 +1137,6 @@ export default {
         <div class="account-actions">
           <el-button class="border-radius custom-zfb" @click="dialog_zfb = true"></el-button>
           <el-button class="border-radius custom-weChatPay" @click="dialog_wechat = true"></el-button>
-        </div>
-      </el-card>
-      <el-card shadow="hover" class="panel-card shipping-card clickable" @click.native="openEditInfo">
-        <div class="card-header">
-          <h3>取件信息</h3>
-          <span>用于线下取货</span>
-        </div>
-        <div class="shipping-list">
-          <p><strong>联系人：</strong>{{ userInfo.cname || '暂无' }}</p>
-          <p><strong>联系电话：</strong>{{ userInfo.cphone || '暂无' }}</p>
-          <p><strong>联系地址：</strong>{{ userInfo.caddress || '暂无' }}</p>
-          <p><strong>备注：</strong>{{ userInfo.cremark || '暂无' }}</p>
         </div>
       </el-card>
     </section>
@@ -1186,6 +1362,32 @@ export default {
   color: var(--ink-soft);
 }
 
+.order-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10px;
+}
+
+.order-admin-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.order-search-input {
+  width: 220px;
+}
+
+.order-search-select {
+  width: 140px;
+}
+
+.order-search-date {
+  min-width: 240px;
+}
+
 .order-list {
   display: flex;
   flex-direction: column;
@@ -1299,6 +1501,28 @@ export default {
   background: var(--paper) !important;
   color: var(--ink);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.back-button {
+  position: fixed;
+  top: 18px;
+  left: 18px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  border: none;
+  background: #1f7a6d;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(31, 56, 94, 0.2);
+  z-index: 50;
+}
+
+.back-button:hover {
+  background: #17675d;
 }
 
 .panel-card:hover {

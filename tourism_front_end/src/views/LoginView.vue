@@ -116,10 +116,10 @@ export default {
 
 <template>
   <div class="auth-page">
+    <button class="back-button" @click="$router.push('/indexView')">
+      <i class="el-icon-arrow-left"></i>
+    </button>
     <div class="auth-card">
-      <button class="back-button" @click="$router.push('/indexView')">
-        <i class="el-icon-arrow-left"></i>
-      </button>
       <div class="auth-aside">
         <el-image :src="url" class="auth-logo" fit="cover"></el-image>
         <h1>中山市城市文化旅游特色展示系统</h1>
@@ -191,7 +191,6 @@ export default {
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
   animation: fadeInUp 0.6s ease both;
-  position: relative;
 }
 
 .auth-aside {
@@ -268,7 +267,7 @@ export default {
 }
 
 .back-button {
-  position: absolute;
+  position: fixed;
   top: 18px;
   left: 18px;
   width: 42px;

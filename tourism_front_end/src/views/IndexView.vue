@@ -1,7 +1,7 @@
 ﻿
 <script>
 import {jwtDecode} from 'jwt-decode';
-
+//TODO:项目存在较多中文字符为问号，如???????,需要在项目完成后统一检查
 const AMAP_SCRIPT_ID = 'amap-js-sdk';
 const AMAP_UI_SCRIPT_ID = 'amap-ui-sdk';
 
@@ -382,6 +382,11 @@ export default {
     },
     handleUserCommand(command) {
       if (command === 'profile') {
+        this.$router.push('/userInfo').catch(() => {});
+        return;
+      }
+      if (command === 'orders') {
+        sessionStorage.setItem('openOrders', '1');
         this.$router.push('/userInfo').catch(() => {});
         return;
       }
@@ -1133,7 +1138,7 @@ export default {
                 </span>
                 <el-dropdown-menu slot="dropdown">
                   <el-dropdown-item command="profile">修改资料</el-dropdown-item>
-                  <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+                  <el-dropdown-item divided command="orders">查看订单</el-dropdown-item>
                 </el-dropdown-menu>
               </el-dropdown>
               <el-button type="default" plain class="nav-action nav-action--logout" @click="handleLogout">

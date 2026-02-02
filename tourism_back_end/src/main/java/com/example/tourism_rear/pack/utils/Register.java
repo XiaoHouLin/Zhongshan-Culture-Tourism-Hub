@@ -10,6 +10,7 @@ public class Register{
     private String password;
     private Integer authority = 3; //默认权限，3为顾客
     private String email;
+    private String emailCode;
     private char csex;
     private String cname;
     private String cno;

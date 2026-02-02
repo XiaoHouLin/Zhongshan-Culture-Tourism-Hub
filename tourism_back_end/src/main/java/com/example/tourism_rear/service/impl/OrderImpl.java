@@ -40,6 +40,7 @@ public class OrderImpl implements OrderService {
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000;
     private static final String LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    private static final long PAYMENT_EXPIRE_MINUTES = 15;
     private final java.security.SecureRandom random = new java.security.SecureRandom();
 
     @Transactional
@@ -56,7 +57,14 @@ public class OrderImpl implements OrderService {
 
     @Override
     public List<OrderInfoAddDate> listOrders(Integer uid) {
+        closeExpiredOrders();
         return orderMapper.listOrders(uid);
+    }
+
+    @Override
+    public OrderInfoAddDate getActiveOrderByUid(Integer uid) {
+        closeExpiredOrders();
+        return orderMapper.getActiveOrderByUid(uid);
     }
 
     @Override
@@ -66,17 +74,20 @@ public class OrderImpl implements OrderService {
 
     @Override
     public Double getTotalPrice(Integer uid) {
+        closeExpiredOrders();
         return orderMapper.getTotalPrice(uid);
     }
 
     @Override
     public List<Integer> getOrderNumber(Integer uid, boolean status) {
+        closeExpiredOrders();
         return orderMapper.getOrderNumber(uid, status);
     }
 
     @Transactional
     @Override
     public void updateOrder(OrderRequest order) {
+        ensureOrderActive(order == null ? null : order.getOrderId());
         int retryCount = 0;
         long delay = RETRY_DELAY;
         while (true) {
@@ -114,7 +125,22 @@ public class OrderImpl implements OrderService {
     public Map<String, String> payOrder(OrderInfo order) {
         Integer uid = order.getUid();
         Integer orderId = order.getOrderId();
+        if (orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderInfoAddDate existing = orderMapper.getOrderInfoById(orderId);
+        if (existing == null) {
+            throw new RuntimeException("订单不存在");
+        }
         LocalDateTime localDateTime = LocalDateTime.now();
+        if (isExpired(existing, localDateTime)) {
+            closeExpiredOrders();
+            throw new RuntimeException("订单已过期，请重新下单");
+        }
+        Integer status = existing.getOrderStatus() == null ? 0 : existing.getOrderStatus();
+        if (status != 0) {
+            throw new RuntimeException("订单状态异常，请重新下单");
+        }
         Double balance = userMapper.getBalance(uid);
         Double totalPrice = getTotalPrice(uid);
 
@@ -182,6 +208,7 @@ public class OrderImpl implements OrderService {
 
     @Override
     public List<OrderAdminView> listAllOrders() {
+        closeExpiredOrders();
         return orderMapper.listAllOrders();
     }
 
@@ -200,6 +227,83 @@ public class OrderImpl implements OrderService {
         LocalDateTime pickupTime = status == 3 ? now : null;
         LocalDateTime completeDate = status == 0 ? null : now;
         orderMapper.updateOrderStatus(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate);
+        if (status == 1) {
+            OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(update.getOrderId());
+            if (orderInfo != null && (orderInfo.getPickupCode() == null || orderInfo.getPickupToken() == null)) {
+                String pickupCode = generatePickupCode(LocalDate.now());
+                String payload = update.getOrderId() + "|" + pickupCode + "|" + now;
+                String pickupToken = pickupTokenUtil.encrypt(payload);
+                orderMapper.updatePickupInfo(update.getOrderId(), pickupCode, pickupToken);
+            }
+        }
+    }
+
+    @Override
+    public void closeOrder(Integer orderId, Integer uid, boolean isAdmin) {
+        if (orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        if (!isAdmin) {
+            Integer owner = orderMapper.getOrderUid(orderId);
+            if (owner == null || !owner.equals(uid)) {
+                throw new RuntimeException("无权限");
+            }
+        }
+        OrderStatusUpdate update = new OrderStatusUpdate();
+        update.setOrderId(orderId);
+        update.setOrderStatus(2);
+        updateOrderStatus(update);
+    }
+
+    @Override
+    public void deleteOrders(List<Integer> orderIds, Integer uid, boolean isAdmin) {
+        if (orderIds == null || orderIds.isEmpty()) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        if (!isAdmin) {
+            List<Integer> owners = orderMapper.getOrderUids(orderIds);
+            if (owners.size() != orderIds.size()) {
+                throw new RuntimeException("订单不存在");
+            }
+            if (owners.stream().anyMatch(owner -> owner == null || !owner.equals(uid))) {
+                throw new RuntimeException("无权限");
+            }
+        }
+        orderMapper.deleteOrderDetailsByOrderIds(orderIds);
+        orderMapper.deleteOrder(orderIds);
+    }
+
+    @Override
+    public int closeExpiredOrders() {
+        LocalDateTime now = LocalDateTime.now();
+        LocalDateTime expireBefore = now.minusMinutes(PAYMENT_EXPIRE_MINUTES);
+        return orderMapper.closeExpiredOrders(expireBefore, now);
+    }
+
+    private void ensureOrderActive(Integer orderId) {
+        if (orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(orderId);
+        if (orderInfo == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        LocalDateTime now = LocalDateTime.now();
+        if (isExpired(orderInfo, now)) {
+            closeExpiredOrders();
+            throw new RuntimeException("订单已过期，请重新下单");
+        }
+        Integer status = orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus();
+        if (status != 0) {
+            throw new RuntimeException("订单已关闭或已支付，请重新下单");
+        }
+    }
+
+    private boolean isExpired(OrderInfoAddDate orderInfo, LocalDateTime now) {
+        if (orderInfo == null || orderInfo.getCreateDate() == null) {
+            return false;
+        }
+        return orderInfo.getCreateDate().plusMinutes(PAYMENT_EXPIRE_MINUTES).isBefore(now);
     }
 
     private PickupPayload parsePickupToken(String token) {

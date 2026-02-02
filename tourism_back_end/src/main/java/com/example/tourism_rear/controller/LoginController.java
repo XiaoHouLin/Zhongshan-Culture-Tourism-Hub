@@ -23,7 +23,7 @@ public class LoginController {
 
     @PostMapping("/login")
     public Result login(@RequestBody Login user, HttpServletResponse response) {
-        log.info("用户登录:{}", user);
+        log.info("用户登录:{}", user.getUsername());
         if (userService.login(user) != null) {
             Map<String, Object> claims = new HashMap<>();
             claims.put("uid", userService.getUidByUsername(user.getUsername()));
@@ -39,7 +39,7 @@ public class LoginController {
 
     @PostMapping("/api/validate-token")
     public Result validateToken(HttpServletRequest request) {
-        log.info("验证token:{}", request.getHeader("Authorization"));
+        log.info("验证token请求");
         String jwt = request.getHeader("Authorization");
         if (jwt != null && jwt.contains("Bearer ")) {
             jwt = jwt.substring(7);

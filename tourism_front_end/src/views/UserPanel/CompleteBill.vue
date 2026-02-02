@@ -7,12 +7,14 @@ export default {
     return {
       pickupCode: '',
       pickupToken: '',
-      pickupQrUrl: ''
+      pickupQrUrl: '',
+      orderId: ''
     };
   },
   created() {
     this.pickupCode = sessionStorage.getItem('pickupCode') || '';
     this.pickupToken = sessionStorage.getItem('pickupToken') || '';
+    this.orderId = sessionStorage.getItem('recentOrderId') || '';
     this.generateQr();
   },
   methods: {
@@ -27,6 +29,14 @@ export default {
       } catch (error) {
         this.pickupQrUrl = '';
       }
+    },
+    viewOrderDetail() {
+      if (this.orderId) {
+        sessionStorage.setItem('openOrderDetailId', this.orderId);
+      } else {
+        sessionStorage.setItem('openOrders', '1');
+      }
+      this.$router.push('/userInfo');
     }
   }
 }
@@ -45,11 +55,10 @@ export default {
         </div>
         <div v-if="pickupQrUrl" class="pickup-qr">
           <img :src="pickupQrUrl" alt="取件二维码" />
-          <small>二维码为加密内容，需管理员扫码确认取货。</small>
         </div>
       </div>
       <div class="complete-actions">
-        <el-button type="primary" icon="el-icon-document" @click="$router.push('/userInfo')" round>查看订单</el-button>
+        <el-button type="primary" icon="el-icon-document" @click="viewOrderDetail" round>查看订单</el-button>
         <el-button type="primary" icon="el-icon-goods" @click="$router.push('/userPanel/culturalProducts')" round>继续购物</el-button>
         <el-button plain icon="el-icon-back" @click="$router.push('/indexView')" round>返回首页</el-button>
       </div>
@@ -82,10 +91,11 @@ export default {
 }
 
 .pickup-info {
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 16px;
   margin-bottom: 20px;
-  justify-items: center;
 }
 
 .pickup-code {
@@ -101,8 +111,8 @@ export default {
 }
 
 .pickup-qr img {
-  width: 160px;
-  height: 160px;
+  width: 200px;
+  height: 200px;
   border-radius: 12px;
   border: 1px solid rgba(31, 122, 109, 0.2);
 }

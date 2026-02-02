@@ -6,6 +6,7 @@ import com.example.tourism_rear.pack.utils.OrderInfoAddDate;
 import com.example.tourism_rear.pack.utils.OrderRequest;
 import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
@@ -35,6 +36,12 @@ public interface OrderMapper {
     @Select("SELECT * FROM `order` WHERE orderId = #{orderId}")
     OrderInfoAddDate getOrderInfoById(Integer orderId);
 
+    @Select("SELECT * FROM `order` WHERE uid = #{uid} AND isCompleted = 0 AND orderStatus = 0 ORDER BY CreateDate DESC LIMIT 1")
+    OrderInfoAddDate getActiveOrderByUid(Integer uid);
+
+    @Select("SELECT uid FROM `order` WHERE orderId = #{orderId}")
+    Integer getOrderUid(Integer orderId);
+
     @Select("SELECT o.orderId, o.uid, u.username, COALESCE(o.phone, c.cphone) AS phone, o.email, o.name, o.address, o.remark, " +
             "o.CreateDate, o.CompleteDate, o.pickupCode, o.pickupStatus, o.pickupTime, o.orderStatus " +
             "FROM `order` o " +
@@ -46,6 +53,10 @@ public interface OrderMapper {
     // 查询订单总价
     @Select("SELECT totalPrice FROM `order` WHERE uid = #{uid} and isCompleted = 0")
     Double getTotalPrice(Integer uid);
+
+    @Update("UPDATE `order` SET orderStatus = 2, isCompleted = 1, pickupStatus = 0, pickupTime = NULL, CompleteDate = #{closeTime} " +
+            "WHERE orderStatus = 0 AND isCompleted = 0 AND CreateDate < #{expireBefore}")
+    int closeExpiredOrders(@Param("expireBefore") LocalDateTime expireBefore, @Param("closeTime") LocalDateTime closeTime);
 
     @Select("SELECT count(*) FROM `order` WHERE CreateDate >= #{start} AND CreateDate < #{end}")
     int countOrdersByDate(LocalDateTime start, LocalDateTime end);
@@ -79,8 +90,15 @@ public interface OrderMapper {
     @Update("UPDATE `order` SET pickupStatus = 1, pickupTime = #{pickupTime}, isCompleted = 1, CompleteDate = #{pickupTime}, orderStatus = 3 WHERE orderId = #{orderId}")
     void markPickup(Integer orderId, LocalDateTime pickupTime);
 
+    List<Integer> getOrderUids(@org.apache.ibatis.annotations.Param("orderIds") List<Integer> orderIds);
+
+    void deleteOrderDetailsByOrderIds(@org.apache.ibatis.annotations.Param("orderIds") List<Integer> orderIds);
+
     @Update("UPDATE `order` SET orderStatus = #{orderStatus}, isCompleted = #{isCompleted}, pickupStatus = #{pickupStatus}, pickupTime = #{pickupTime}, CompleteDate = #{completeDate} WHERE orderId = #{orderId}")
     void updateOrderStatus(Integer orderId, Integer orderStatus, Integer isCompleted, Integer pickupStatus, LocalDateTime pickupTime, LocalDateTime completeDate);
+
+    @Update("UPDATE `order` SET pickupCode = #{pickupCode}, pickupToken = #{pickupToken} WHERE orderId = #{orderId}")
+    void updatePickupInfo(@Param("orderId") Integer orderId, @Param("pickupCode") String pickupCode, @Param("pickupToken") String pickupToken);
 
     // 删除订单
     void deleteOrder(List<Integer> orderId);

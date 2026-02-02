@@ -18,6 +18,8 @@ public interface OrderService {
 
     List<OrderInfoAddDate> listOrders(Integer uid);
 
+    OrderInfoAddDate getActiveOrderByUid(Integer uid);
+
     List<Order> getOrderDetails(Integer orderId);
 
     Double getTotalPrice(Integer uid);
@@ -37,4 +39,10 @@ public interface OrderService {
     List<OrderAdminView> listAllOrders();
 
     void updateOrderStatus(OrderStatusUpdate update);
+
+    void closeOrder(Integer orderId, Integer uid, boolean isAdmin);
+
+    void deleteOrders(List<Integer> orderIds, Integer uid, boolean isAdmin);
+
+    int closeExpiredOrders();
 }

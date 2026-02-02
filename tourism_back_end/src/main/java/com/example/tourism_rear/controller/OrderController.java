@@ -14,6 +14,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,19 +57,41 @@ public class OrderController {
 
     @GetMapping("/getOrderInfoBy={uid}")
     public Result getTotalPrice(@PathVariable Integer uid) {
-        log.info("查询订单总价，未完成订单数，订单用户uid为：{}", uid);
+        log.info("??????????????????uid??{}", uid);
         Map<String, Object> orderInfo = new HashMap<>();
-        boolean inComplete = false;
-        orderInfo.put("orderId", orderService.getOrderNumber(uid, inComplete));
-        orderInfo.put("totalPrice", orderService.getTotalPrice(uid));
+        OrderInfoAddDate activeOrder = orderService.getActiveOrderByUid(uid);
+        if (activeOrder != null && activeOrder.getOrderId() != null) {
+            orderInfo.put("orderId", List.of(activeOrder.getOrderId()));
+            orderInfo.put("totalPrice", activeOrder.getTotalPrice() == null ? 0 : activeOrder.getTotalPrice());
+            LocalDateTime expireAt = activeOrder.getCreateDate() == null
+                    ? null
+                    : activeOrder.getCreateDate().plusMinutes(15);
+            if (expireAt != null) {
+                long remainingSeconds = Math.max(0, java.time.Duration.between(LocalDateTime.now(), expireAt).getSeconds());
+                orderInfo.put("remainingSeconds", remainingSeconds);
+                orderInfo.put("expireTime", expireAt.format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")));
+            } else {
+                orderInfo.put("remainingSeconds", 0);
+                orderInfo.put("expireTime", null);
+            }
+        } else {
+            orderInfo.put("orderId", new ArrayList<>());
+            orderInfo.put("totalPrice", 0);
+            orderInfo.put("remainingSeconds", 0);
+            orderInfo.put("expireTime", null);
+        }
         return Result.success(orderInfo);
     }
 
     @PostMapping("/update")
     public Result updateOrder(@RequestBody OrderRequest order) {
-        log.info("修改订单信息，订单id为：{}，订单信息为：{}", order.getOrderId(), order);
-        orderService.updateOrder(order);
-        return Result.success();
+        log.info("?????????id??{}???????{}", order.getOrderId(), order);
+        try {
+            orderService.updateOrder(order);
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @PostMapping("/payment")
@@ -126,6 +150,34 @@ public class OrderController {
         }
     }
 
+    @PostMapping("/close")
+    public Result closeOrder(@RequestBody OrderStatusUpdate update, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        try {
+            orderService.closeOrder(update.getOrderId(), uid, isAdmin(request));
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/delete")
+    public Result deleteOrder(@RequestBody List<Integer> orderIds, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        try {
+            orderService.deleteOrders(orderIds, uid, isAdmin(request));
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
     private boolean isAdmin(HttpServletRequest request) {
         String jwt = request.getHeader("Authorization");
         if (jwt == null || !jwt.contains("Bearer ")) {
@@ -138,6 +190,21 @@ public class OrderController {
             return role != null && Integer.parseInt(role.toString()) == 1;
         } catch (Exception e) {
             return false;
+        }
+    }
+
+    private Integer getUidFromRequest(HttpServletRequest request) {
+        String jwt = request.getHeader("Authorization");
+        if (jwt == null || !jwt.contains("Bearer ")) {
+            return null;
+        }
+        jwt = jwt.substring(7);
+        try {
+            Claims claims = Jwt.checkToken(jwt);
+            Object uid = claims.get("uid");
+            return uid == null ? null : Integer.parseInt(uid.toString());
+        } catch (Exception e) {
+            return null;
         }
     }
 }

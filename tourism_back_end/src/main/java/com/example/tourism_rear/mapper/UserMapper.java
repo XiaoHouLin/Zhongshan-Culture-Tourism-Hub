@@ -87,6 +87,12 @@ public interface UserMapper {
     Login getUserNameAndPassword(Login login);
 
     /**
+     * 根据用户名获取登录信息
+     */
+    @Select("select username, password from user where binary username=#{username}")
+    Login getUserByUsername(String username);
+
+    /**
      * 根据username查找权限
      */
     @Select("select authority from user where username=#{username}")
@@ -103,6 +109,18 @@ public interface UserMapper {
      */
     @Update("update user set password=#{newPassword} where uid=#{uid} and password=#{oldPassword}")
     int updatePassword(Integer uid, String oldPassword, String newPassword);
+
+    /**
+     * 根据uid获取密码
+     */
+    @Select("select password from user where uid=#{uid}")
+    String getPasswordByUid(Integer uid);
+
+    /**
+     * 根据uid更新密码
+     */
+    @Update("update user set password=#{newPassword} where uid=#{uid}")
+    int updatePasswordByUid(Integer uid, String newPassword);
 
     /**
      * 根据uid查找余额

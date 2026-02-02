@@ -19,6 +19,20 @@
         </foreach>
     </delete>
 
+    <delete id="deleteOrderDetailsByOrderIds" parameterType="java.util.List">
+        DELETE FROM orderDetails WHERE orderId IN
+        <foreach collection="orderIds" item="orderId" separator=",">
+            #{orderId}
+        </foreach>
+    </delete>
+
+    <select id="getOrderUids" parameterType="java.util.List" resultType="integer">
+        SELECT uid FROM `order` WHERE orderId IN
+        <foreach collection="orderIds" item="orderId" separator=",">
+            #{orderId}
+        </foreach>
+    </select>
+
     <select id="getOrderNumber" parameterType="java.util.List" resultType="integer">
         SELECT orderId from `order` where uid = #{uid} and isCompleted = #{status}
     </select>

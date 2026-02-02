@@ -10,8 +10,10 @@ import com.example.tourism_rear.pack.utils.UserInfo;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -22,6 +24,7 @@ public class UserImpl implements UserService {
 
     @Autowired
     private UserMapper userMapper;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
      * 添加用户
@@ -31,6 +34,7 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void addUserInfo(UserInfo userInfo) {
+        userInfo.setPassword(encodePasswordIfNeeded(userInfo.getPassword()));
         userMapper.insertUser(userInfo);
         userInfo.setUid(userMapper.getUidByUsername(userInfo.getUsername()));
         String uidStr = Integer.toString(userInfo.getUid());
@@ -47,6 +51,7 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void registerUser(Register registerInfo) {
+        registerInfo.setPassword(encodePasswordIfNeeded(registerInfo.getPassword()));
         userMapper.registerUser(registerInfo);
         registerInfo.setUid(getUidByUsername(registerInfo.getUsername()));
         String uidStr = Integer.toString(registerInfo.getUid());
@@ -146,7 +151,12 @@ public class UserImpl implements UserService {
      */
     @Override
     public boolean updatePassword(Integer uid, String oldPassword, String newPassword) {
-        return userMapper.updatePassword(uid, oldPassword, newPassword) > 0;
+        String storedPassword = userMapper.getPasswordByUid(uid);
+        if (!passwordMatches(oldPassword, storedPassword)) {
+            return false;
+        }
+        String encoded = encodePasswordIfNeeded(newPassword);
+        return userMapper.updatePasswordByUid(uid, encoded) > 0;
     }
 
 
@@ -165,7 +175,47 @@ public class UserImpl implements UserService {
      */
     @Override
     public Login login(Login login) {
-        return userMapper.getUserNameAndPassword(login);
+        if (login == null || !StringUtils.hasText(login.getUsername())) {
+            return null;
+        }
+        Login stored = userMapper.getUserByUsername(login.getUsername());
+        if (stored == null) {
+            return null;
+        }
+        if (!passwordMatches(login.getPassword(), stored.getPassword())) {
+            return null;
+        }
+        // 自动升级旧的明文密码为加密存储
+        if (!isBcryptHash(stored.getPassword())) {
+            String encoded = encodePasswordIfNeeded(login.getPassword());
+            int uid = userMapper.getUidByUsername(login.getUsername());
+            userMapper.updatePasswordByUid(uid, encoded);
+        }
+        return stored;
+    }
+
+    private String encodePasswordIfNeeded(String rawPassword) {
+        if (!StringUtils.hasText(rawPassword)) {
+            return rawPassword;
+        }
+        if (isBcryptHash(rawPassword)) {
+            return rawPassword;
+        }
+        return passwordEncoder.encode(rawPassword);
+    }
+
+    private boolean passwordMatches(String rawPassword, String storedPassword) {
+        if (!StringUtils.hasText(rawPassword) || !StringUtils.hasText(storedPassword)) {
+            return false;
+        }
+        if (isBcryptHash(storedPassword)) {
+            return passwordEncoder.matches(rawPassword, storedPassword);
+        }
+        return rawPassword.equals(storedPassword);
+    }
+
+    private boolean isBcryptHash(String value) {
+        return value != null && (value.startsWith("$2a$") || value.startsWith("$2b$") || value.startsWith("$2y$"));
     }
 }
 

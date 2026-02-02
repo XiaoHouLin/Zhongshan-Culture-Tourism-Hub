@@ -15,6 +15,7 @@ export default {
       isPaying: false,
       userInfo: {},
       orderId: [],
+      currentOrderId: null,
       orderInfo: {
         uid: '',
         orderId: null,
@@ -35,6 +36,9 @@ export default {
       rechargeDialogVisible: false,
       rechargeTitle: '',
       rechargeImage: '',
+      remainingSeconds: 0,
+      countdownTimer: null,
+      orderClosed: false,
       amapKey:
         (typeof window !== 'undefined' && window.AMAP_KEY) ||
         process.env.VUE_APP_AMAP_KEY ||
@@ -50,7 +54,15 @@ export default {
   },
   computed: {
     isBillInvalid() {
-      return !this.userInfo.cphone;
+      return !this.userInfo.cphone || this.orderClosed;
+    },
+    countdownText() {
+      if (this.orderClosed) {
+        return '订单已关闭，无法继续支付';
+      }
+      const minutes = Math.floor(this.remainingSeconds / 60);
+      const seconds = this.remainingSeconds % 60;
+      return `支付倒计时 ${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
     }
   },
   methods: {
@@ -73,6 +85,9 @@ export default {
             this.cartTotal = info.data.data.totalPrice;
             this.totalAmount = this.cartTotal;
             if (this.orderId.length !== 0) {
+              this.currentOrderId = Array.isArray(this.orderId) ? this.orderId.at(0) : this.orderId;
+              const remaining = Number(info.data.data.remainingSeconds);
+              this.initPaymentCountdown(remaining);
               const res = await apiRear.get(`/order/getOrderByOrderId=${this.orderId}`);
               this.shoppingCart = res.data.data;
             } else {
@@ -89,12 +104,16 @@ export default {
       try {
         this.isPaying = true;
         this.orderInfo.uid = this.userInfo.uid;
-        this.orderInfo.orderId = this.orderId.at(0);
+        this.orderInfo.orderId = Array.isArray(this.orderId) ? this.orderId.at(0) : this.orderId;
         this.orderInfo.email = this.userInfo.email || '';
         this.orderInfo.cphone = this.userInfo.cphone;
         this.orderInfo.cname = this.userInfo.cname || '';
         this.orderInfo.caddress = this.userInfo.caddress || '';
         this.orderInfo.cremark = this.userInfo.cremark || '';
+        if (this.orderClosed) {
+          this.$message.error('订单已关闭，请重新下单');
+          return;
+        }
         await new Promise(resolve => setTimeout(resolve, 1200));
         const res = await apiRear.post(`/order/payment`, this.orderInfo);
         if (res.data.message === "余额不足") {
@@ -116,6 +135,13 @@ export default {
         }
         if (pickupInfo.pickupToken) {
           sessionStorage.setItem('pickupToken', pickupInfo.pickupToken);
+        }
+        if (this.currentOrderId) {
+          sessionStorage.setItem('recentOrderId', String(this.currentOrderId));
+        }
+        if (this.countdownTimer) {
+          clearInterval(this.countdownTimer);
+          this.countdownTimer = null;
         }
         this.$message.success(`支付成功，取件码：${pickupInfo.pickupCode || '已生成'}`);
         await this.$router.push('/CompleteBill');
@@ -276,6 +302,49 @@ export default {
       const url = `https://uri.amap.com/navigation?to=${lng},${lat},文创自取门店&mode=car&policy=1&src=webapp`;
       window.open(url, '_blank');
     },
+    initPaymentCountdown(remainingSeconds) {
+      if (!this.currentOrderId) {
+        return;
+      }
+      if (!Number.isFinite(remainingSeconds) || remainingSeconds <= 0) {
+        this.remainingSeconds = 0;
+        this.handleOrderExpired();
+        return;
+      }
+      this.remainingSeconds = remainingSeconds;
+      if (this.countdownTimer) {
+        clearInterval(this.countdownTimer);
+      }
+      this.countdownTimer = setInterval(this.updateCountdown, 1000);
+    },
+
+    updateCountdown() {
+      if (!Number.isFinite(this.remainingSeconds)) {
+        return;
+      }
+      this.remainingSeconds = Math.max(0, this.remainingSeconds - 1);
+      if (this.remainingSeconds <= 0) {
+        this.handleOrderExpired();
+      }
+    },
+
+    async handleOrderExpired() {
+      if (this.orderClosed) {
+        return;
+      }
+      this.orderClosed = true;
+      if (this.countdownTimer) {
+        clearInterval(this.countdownTimer);
+        this.countdownTimer = null;
+      }
+      try {
+        if (this.currentOrderId) {
+          await apiRear.post('/order/close', {orderId: this.currentOrderId});
+        }
+      } catch (error) {
+        // ignore
+      }
+    },
     formatMoney(value) {
       if (value === undefined || value === null || value === '') {
         return '0.00';
@@ -285,6 +354,12 @@ export default {
         return '0.00';
       }
       return num.toFixed(2);
+    }
+  },
+  beforeDestroy() {
+    if (this.countdownTimer) {
+      clearInterval(this.countdownTimer);
+      this.countdownTimer = null;
     }
   }
 }
@@ -329,6 +404,10 @@ export default {
           <div class="pickup-alert" @click="openPickupMap">
             <i class="el-icon-location-outline"></i>
             <span>仅支持线下自取 · 点击查看门店地图</span>
+          </div>
+          <div class="countdown-card" :class="{ expired: orderClosed }">
+            <i class="el-icon-timer"></i>
+            <span>{{ countdownText }}</span>
           </div>
           <div class="recharge-section">
             <p class="bill-label">余额增值</p>
@@ -592,6 +671,22 @@ export default {
   margin: 0;
   color: #5f6b66;
   font-size: 13px;
+}
+
+.countdown-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(199, 90, 49, 0.12);
+  color: #a2472b;
+  font-weight: 600;
+}
+
+.countdown-card.expired {
+  background: rgba(232, 58, 58, 0.12);
+  color: #e83a3a;
 }
 
 @media (max-width: 900px) {

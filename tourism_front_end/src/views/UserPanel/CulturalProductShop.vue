@@ -282,11 +282,11 @@ export default {
     },
     async handlePay(isButtonTriggered = false) {
       if (!this.isLoggedIn) {
-        this.requireLogin('结算');
+        this.requireLogin('??');
         return;
       }
       if (this.shoppingCart.length <= 0) {
-        this.$message.error('购物车为空！');
+        this.$message.error('??????');
         return;
       }
       if (!this.validateCartBeforeCheckout()) {
@@ -294,36 +294,56 @@ export default {
       }
       this.loading = true;
       try {
+        let response = null;
         if (this.orderId === null) {
-          await apiRear.post('/order/add', {
+          response = await apiRear.post('/order/add', {
             uid: this.userInfo.uid,
-            totalProductPrice: this.cartTotal,
-            shoppingCart: this.shoppingCart,
-          }).then(
-              res => {
-                this.orderId = res.data.data;
-                console.log(this.orderId)
-              }
-          );
-        } else {
-          await apiRear.post('/order/update', {
-            uid: this.userInfo.uid,
-            orderId: this.orderId.at(0),
             totalProductPrice: this.cartTotal,
             shoppingCart: this.shoppingCart,
           });
+          if (response.data.code !== 1) {
+            throw new Error(response.data.message || '??????');
+          }
+          this.orderId = response.data.data;
+        } else {
+          const orderIdValue = Array.isArray(this.orderId) ? this.orderId.at(0) : this.orderId;
+          response = await apiRear.post('/order/update', {
+            uid: this.userInfo.uid,
+            orderId: orderIdValue,
+            totalProductPrice: this.cartTotal,
+            shoppingCart: this.shoppingCart,
+          });
+          if (response.data.code === 0) {
+            const message = response.data.message || '';
+            if (message.includes('??') || message.includes('??')) {
+              this.orderId = null;
+              response = await apiRear.post('/order/add', {
+                uid: this.userInfo.uid,
+                totalProductPrice: this.cartTotal,
+                shoppingCart: this.shoppingCart,
+              });
+              if (response.data.code !== 1) {
+                throw new Error(response.data.message || '??????');
+              }
+              this.orderId = response.data.data;
+            } else {
+              throw new Error(message || '??????');
+            }
+          }
         }
       } catch (error) {
-        this.$message.error('订单保存失败！');
+        this.$message.error(error && error.message ? error.message : '???????');
+        this.loading = false;
+        return;
       }
       if (!isButtonTriggered) {
         this.loading = false;
         return;
       }
       if (this.userInfo.balance < this.cartTotal) {
-        this.$confirm('您的余额不足，是否还要前往结算页面？', '余额不足', {
-          confirmButtonText: '前往结算',
-          cancelButtonText: '继续购物',
+        this.$confirm('??????????????????', '????', {
+          confirmButtonText: '????',
+          cancelButtonText: '????',
           type: 'warning'
         }).then(() => {
           localStorage.removeItem('shoppingCart');
@@ -332,7 +352,7 @@ export default {
         }).catch(() => {
           this.$message({
             type: 'info',
-            message: '已取消结算'
+            message: '?????'
           });
           this.loading = false;
         })
@@ -342,6 +362,7 @@ export default {
         await this.$router.push('/billPayment');
       }
     },
+
     handleButtonClick(buttons, index, searchField) {
       buttons.forEach((button, i) => {
         button.isClicked = i === index;
@@ -590,10 +611,11 @@ export default {
         this.shoppingCart = [];
         this.cartTotal = 0;
         localStorage.removeItem('shoppingCart');
-        if (Array.isArray(this.orderId) && this.orderId.length) {
+        const orderIdValue = Array.isArray(this.orderId) ? this.orderId.at(0) : this.orderId;
+        if (orderIdValue) {
           apiRear.post('/order/update', {
             uid: this.userInfo.uid,
-            orderId: this.orderId.at(0),
+            orderId: orderIdValue,
             totalProductPrice: 0,
             shoppingCart: []
           }).finally(() => {
@@ -623,6 +645,9 @@ export default {
 <template>
   <el-container class="shop-layout" :class="{ 'with-aside': isPanelRoute }">
     <el-main class="shop-main">
+      <button class="back-button" @click="$router.push('/indexView')">
+        <i class="el-icon-arrow-left"></i>
+      </button>
       <div class="shop-top-grid">
         <el-card shadow="hover" class="border shop-top-card shop-top-card--search">
           <p class="strong" style="font-size: 130%;margin: 10px">🔍查询</p>
@@ -1006,6 +1031,28 @@ export default {
 .shop-main {
   padding: 24px 32px 90px;
   background: transparent;
+}
+
+.back-button {
+  position: fixed;
+  top: 20px;
+  left: 20px;
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(31, 122, 109, 0.12);
+  color: var(--teal);
+  border: 1px solid rgba(31, 122, 109, 0.35);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 20;
+}
+
+.back-button:hover {
+  background: rgba(31, 122, 109, 0.22);
 }
 
 .search-button {
