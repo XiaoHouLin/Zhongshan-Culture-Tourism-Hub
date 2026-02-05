@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.example.tourism_rear.mapper.MessageMapper">
+
+    <resultMap id="MessageNoticeMap" type="com.example.tourism_rear.pack.utils.MessageNotice">
+        <id column="id" property="id"/>
+        <result column="uid" property="uid"/>
+        <result column="title" property="title"/>
+        <result column="content" property="content"/>
+        <result column="message_type" property="messageType"/>
+        <result column="ref_id" property="refId"/>
+        <result column="is_read" property="isRead"/>
+        <result column="create_time" property="createTime"/>
+    </resultMap>
+
+    <select id="listByUid" resultMap="MessageNoticeMap">
+        SELECT id, uid, title, content, message_type, ref_id, is_read, create_time
+        FROM message_center
+        WHERE uid = #{uid}
+        ORDER BY create_time DESC
+    </select>
+
+    <insert id="insertMessage" parameterType="com.example.tourism_rear.pack.utils.MessageNotice">
+        INSERT INTO message_center (uid, title, content, message_type, ref_id, is_read, create_time)
+        VALUES (#{uid}, #{title}, #{content}, #{messageType}, #{refId}, #{isRead}, #{createTime})
+    </insert>
+
+    <update id="markRead">
+        UPDATE message_center
+        SET is_read = 1
+        WHERE id = #{id} AND uid = #{uid}
+    </update>
+
+    <delete id="deleteMessage">
+        DELETE FROM message_center
+        WHERE id = #{id} AND uid = #{uid}
+    </delete>
+
+    <select id="countByTypeAndRef" resultType="int">
+        SELECT COUNT(1)
+        FROM message_center
+        WHERE uid = #{uid} AND message_type = #{messageType} AND ref_id = #{refId}
+    </select>
+</mapper>

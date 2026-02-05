@@ -7,6 +7,7 @@ import com.example.tourism_rear.pack.utils.Login;
 import com.example.tourism_rear.pack.utils.Register;
 import com.example.tourism_rear.service.UserService;
 import com.example.tourism_rear.pack.utils.UserInfo;
+import com.example.tourism_rear.service.MessageService;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,6 +25,8 @@ public class UserImpl implements UserService {
 
     @Autowired
     private UserMapper userMapper;
+    @Autowired
+    private MessageService messageService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
@@ -61,6 +64,13 @@ public class UserImpl implements UserService {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
         registerInfo.setCdate(now.format(formatter));
         userMapper.registerClient(registerInfo);
+        messageService.createMessageIfAbsent(
+                registerInfo.getUid(),
+                "REGISTER",
+                "register",
+                "注册成功",
+                "欢迎加入中山文旅系统，开启你的城市文化探索之旅。"
+        );
     }
 
     /**
@@ -157,6 +167,22 @@ public class UserImpl implements UserService {
         }
         String encoded = encodePasswordIfNeeded(newPassword);
         return userMapper.updatePasswordByUid(uid, encoded) > 0;
+    }
+
+    @Override
+    public String getEmailByUsername(String username) {
+        return userMapper.getEmailByUsername(username);
+    }
+
+    @Override
+    public String getUsernameByEmail(String email) {
+        return userMapper.getUsernameByEmail(email);
+    }
+
+    @Override
+    public boolean resetPasswordByEmail(String email, String newPassword) {
+        String encoded = encodePasswordIfNeeded(newPassword);
+        return userMapper.updatePasswordByEmail(email, encoded) > 0;
     }
 
 

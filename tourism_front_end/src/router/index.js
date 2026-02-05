@@ -2,6 +2,7 @@ import Vue from 'vue'
 import VueRouter from 'vue-router'
 import loginView from "@/views/LoginView.vue";
 import registerView from "@/views/RegisterView.vue";
+import ForgotPasswordView from "@/views/ForgotPasswordView.vue";
 import UserPanel from "@/views/UserPanel/Main.vue";
 import UserInfo from "@/views/UserPanel/UserInfo.vue";
 import UserManagement from "@/views/UserPanel/UserManagement.vue";
@@ -37,6 +38,14 @@ const router = new VueRouter({
         {
             path: '/register',
             component: registerView,
+            meta: {
+                showRouterView: true,
+                requiredRole: 3
+            }
+        },
+        {
+            path: '/forgot-password',
+            component: ForgotPasswordView,
             meta: {
                 showRouterView: true,
                 requiredRole: 3

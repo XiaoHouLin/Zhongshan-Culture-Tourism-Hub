@@ -160,7 +160,7 @@ export default {
           <el-button
             class="hypertext"
             style="padding: 0;background: none; border: none; font-size: 14px"
-            @click="() => { this.$message.warning('请联系管理员') }"
+            @click="$router.push('/forgot-password')"
           >忘记密码?</el-button>
         </div>
       </div>
@@ -182,7 +182,8 @@ export default {
 }
 
 .auth-card {
-  width: 920px;
+  width: 1000px;
+  max-width: 100%;
   display: grid;
   grid-template-columns: 1.1fr 1fr;
   gap: 0;

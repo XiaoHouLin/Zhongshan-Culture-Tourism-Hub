@@ -10,7 +10,7 @@ export default {
         callback(new Error('请输入密码'));
       } else if (value.length < 8 || value.length > 20) {
         callback(new Error('密码长度需为8-20位'));
-      } else if (!/^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,20}$/.test(value)) {
+      } else if (!/^(?=.*[A-Za-z])(?=.*\d).{8,20}$/.test(value)) {
         callback(new Error('密码需包含字母和数字'));
       } else {
         if (this.register.checkPass !== '') {
@@ -23,7 +23,7 @@ export default {
       if (value === '') {
         callback(new Error('请再次输入密码'));
       } else if (value !== this.register.pass) {
-        callback(new Error('两次输入密码不一致!'));
+        callback(new Error('两次输入的密码不一致！'));
       } else {
         callback();
       }
@@ -132,7 +132,7 @@ export default {
     isLoginInvalid() {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       const usernameValid = this.register.username.length >= 5 && this.register.username.length <= 20;
-      const passwordValid = /^(?=.*[A-Za-z])(?=.*\d)[A-Za-z\d]{8,20}$/.test(this.register.pass);
+      const passwordValid = /^(?=.*[A-Za-z])(?=.*\d).{8,20}$/.test(this.register.pass);
       const phoneValid = /^\d{11}$/.test(this.register.telephone);
       const ageValid =
         this.register.age === '' ||
@@ -192,6 +192,16 @@ export default {
         const registerRes = await apiRear.post('/register', this.info);
         if (registerRes.data.code === 1) {
           this.$message.success('注册成功');
+          /*
+          addMessage({username: this.register.username}, {
+            id: `register-${this.register.username}`,
+            title: '注册成功',
+            content: `欢迎加入中山文旅系统，${this.register.username}。`,
+            time: formatMessageTime(),
+            read: false,
+            action: '/indexView'
+          });
+          */
           await this.$router.push('/login');
         } else {
           this.$message.error(registerRes.data.message || '注册失败');
@@ -440,7 +450,8 @@ export default {
 }
 
 .auth-card {
-  width: 980px;
+  width: 1000px;
+  max-width: 100%;
   display: grid;
   grid-template-columns: 1fr 1.4fr;
   gap: 0;

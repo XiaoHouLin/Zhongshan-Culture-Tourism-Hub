@@ -21,7 +21,7 @@ public class RegisterController {
     private static final Pattern EMAIL_PATTERN =
             Pattern.compile("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     private static final Pattern PASSWORD_PATTERN =
-            Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d)[A-Za-z\\d]{8,20}$");
+            Pattern.compile("^(?=.*[A-Za-z])(?=.*\\d).{8,20}$");
 
     @Autowired
     private UserService userService;

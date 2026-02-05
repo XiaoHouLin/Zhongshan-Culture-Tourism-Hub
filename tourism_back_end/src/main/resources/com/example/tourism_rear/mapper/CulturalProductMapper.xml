@@ -85,6 +85,12 @@
         WHERE productCode = #{productCode}
     </update>
 
+    <update id="restoreProductStock">
+        UPDATE cultural_product
+        SET stock = stock + #{quantity}
+        WHERE productCode = #{productCode}
+    </update>
+
     <select id="categoryStatistics" resultMap="CulturalProductCategoryMap">
         SELECT
             p.category,

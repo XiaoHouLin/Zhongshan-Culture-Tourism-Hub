@@ -43,5 +43,7 @@ public interface CulturalProductMapper {
 
     void updateProductStock(@Param("quantity") Integer quantity, @Param("productCode") String productCode);
 
+    void restoreProductStock(@Param("quantity") Integer quantity, @Param("productCode") String productCode);
+
     List<CulturalProductCategory> categoryStatistics();
 }

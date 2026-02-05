@@ -26,7 +26,11 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
         //获取请求url
         String url = request.getRequestURI();
         log.info("请求的url：{}", url);
-        if (url.contains("login") || url.contains("register") || url.contains("indexView") || url.contains("isUnique")) {
+        if (url.contains("login")
+                || url.contains("register")
+                || url.contains("indexView")
+                || url.contains("isUnique")
+                || url.contains("password-reset")) {
             //放行
             return true;
         }
@@ -34,17 +38,16 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
             return true;
         }
         String jwt = request.getHeader("authorization");
-        if (jwt != null) {
-            if (jwt.contains("Bearer ")) {
-                jwt = jwt.substring(7);
-            }
-            if (!StringUtils.hasLength(jwt)) {
-                log.info("请求头token为空");
-                Result error = Result.error("Not Login");
-                String notLogin = JSONObject.toJSONString(error);
-                response.getWriter().write(notLogin);
-                return false;
-            }
+        if (jwt != null && jwt.contains("Bearer ")) {
+            jwt = jwt.substring(7);
+        }
+        if (!StringUtils.hasLength(jwt)) {
+            log.info("请求头token为空");
+            Result error = Result.error("Not Login");
+            String notLogin = JSONObject.toJSONString(error);
+            response.getWriter().write(notLogin);
+            response.setStatus(401);
+            return false;
         }
         try {
             //校验jwt

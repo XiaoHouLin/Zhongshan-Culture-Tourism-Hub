@@ -41,6 +41,18 @@ public interface UserMapper {
     @Select("select uid from user where username=#{username}")
     int getUidByUsername(String username);
 
+    /**
+     * 根据用户名获取邮箱
+     */
+    @Select("select email from user where binary username=#{username}")
+    String getEmailByUsername(String username);
+
+    /**
+     * 根据邮箱获取用户名
+     */
+    @Select("select username from user where email=#{email}")
+    String getUsernameByEmail(String email);
+
     void insertClient(UserInfo userInfo);
 
     /**
@@ -109,6 +121,12 @@ public interface UserMapper {
      */
     @Update("update user set password=#{newPassword} where uid=#{uid} and password=#{oldPassword}")
     int updatePassword(Integer uid, String oldPassword, String newPassword);
+
+    /**
+     * 根据邮箱更新密码
+     */
+    @Update("update user set password=#{newPassword} where email=#{email}")
+    int updatePasswordByEmail(String email, String newPassword);
 
     /**
      * 根据uid获取密码

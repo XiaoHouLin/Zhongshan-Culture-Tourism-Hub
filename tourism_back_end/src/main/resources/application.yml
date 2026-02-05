@@ -8,18 +8,22 @@ spring:
     driver-class-name: com.mysql.cj.jdbc.Driver
   mail:
     host: ${MAIL_HOST}
-    port: ${MAIL_PORT:587}
+    port: ${MAIL_PORT}
     username: ${MAIL_USERNAME}
     password: ${MAIL_PASSWORD}
-    protocol: smtp
+    protocol: smtps
     properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-        debug: true
+     mail:
+      transport:
+        protocol: smtps
+      smtps:
+        auth: true
+        ssl:
+          enable: true
+        connectiontimeout: 10000
+        timeout: 10000
+        writetimeout: 10000
+      debug: true
 
 mybatis:
   configuration:

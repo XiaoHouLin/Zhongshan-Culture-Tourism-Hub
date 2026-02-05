@@ -13,6 +13,9 @@ Vue.use(ElementUI);
 Vue.use(VCharts)
 
 apiRear.interceptors.request.use(config => {
+  if (config && config.skipAuth) {
+    return config;
+  }
   const token = sessionStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
@@ -26,7 +29,7 @@ apiRear.interceptors.response.use(
   response => response,
   error => {
     const status = error && error.response ? error.response.status : null;
-    if (status === 401) {
+    if (status === 401 && !(error.config && error.config.skipAuthRedirect)) {
       if (sessionStorage.getItem('token')) {
         sessionStorage.removeItem('token');
       }

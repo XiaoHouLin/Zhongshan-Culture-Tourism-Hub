@@ -3,6 +3,7 @@ package com.example.tourism_rear.service.impl;
 import com.example.tourism_rear.mapper.CulturalProductMapper;
 import com.example.tourism_rear.mapper.OrderMapper;
 import com.example.tourism_rear.mapper.UserMapper;
+import com.example.tourism_rear.pack.utils.CulturalProductInfo;
 import com.example.tourism_rear.pack.utils.Order;
 import com.example.tourism_rear.pack.utils.OrderAdminView;
 import com.example.tourism_rear.pack.utils.OrderInfo;
@@ -10,6 +11,7 @@ import com.example.tourism_rear.pack.utils.OrderInfoAddDate;
 import com.example.tourism_rear.pack.utils.OrderRequest;
 import com.example.tourism_rear.pack.utils.OrderStatusUpdate;
 import com.example.tourism_rear.pack.utils.PickupTokenUtil;
+import com.example.tourism_rear.service.MessageService;
 import com.example.tourism_rear.service.OrderService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -36,6 +38,8 @@ public class OrderImpl implements OrderService {
     private CulturalProductMapper productMapper;
     @Autowired
     private PickupTokenUtil pickupTokenUtil;
+    @Autowired
+    private MessageService messageService;
 
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000;
@@ -48,6 +52,15 @@ public class OrderImpl implements OrderService {
     public void addOrder(OrderRequest order, LocalDateTime localDateTime) {
         orderMapper.addOrder(order, localDateTime);
         orderMapper.addOrderDetails(order);
+        if (order != null && order.getUid() != null && order.getOrderId() != null) {
+            messageService.createMessageIfAbsent(
+                    order.getUid(),
+                    "ORDER_PENDING",
+                    String.valueOf(order.getOrderId()),
+                    "订单待支付",
+                    "订单 " + order.getOrderId() + " 尚未支付，请及时完成付款。"
+            );
+        }
     }
 
     @Override
@@ -133,16 +146,20 @@ public class OrderImpl implements OrderService {
             throw new RuntimeException("订单不存在");
         }
         LocalDateTime localDateTime = LocalDateTime.now();
-        if (isExpired(existing, localDateTime)) {
+        Integer status = existing.getOrderStatus() == null ? 0 : existing.getOrderStatus();
+        if (status == 0 && isExpired(existing, localDateTime)) {
             closeExpiredOrders();
             throw new RuntimeException("订单已过期，请重新下单");
         }
-        Integer status = existing.getOrderStatus() == null ? 0 : existing.getOrderStatus();
-        if (status != 0) {
+        if (status != 0 && status != 4) {
             throw new RuntimeException("订单状态异常，请重新下单");
         }
+        validatePurchaseRules(uid, orderId);
         Double balance = userMapper.getBalance(uid);
-        Double totalPrice = getTotalPrice(uid);
+        Double totalPrice = existing.getTotalPrice() == null ? getTotalPrice(uid) : existing.getTotalPrice();
+        if (totalPrice == null) {
+            throw new RuntimeException("订单金额异常");
+        }
 
         BigDecimal balanceBD = BigDecimal.valueOf(balance);
         BigDecimal totalPriceBD = BigDecimal.valueOf(totalPrice);
@@ -172,6 +189,13 @@ public class OrderImpl implements OrderService {
             String productCode = (String) entry.get("productCode");
             productMapper.updateProductStock(quantity, productCode);
         }
+        messageService.createMessageIfAbsent(
+                uid,
+                "ORDER_PICKUP",
+                String.valueOf(orderId),
+                "订单待取货",
+                "订单 " + orderId + " 已支付，请查看取件码与取货信息。"
+        );
         Map<String, String> pickupInfo = new HashMap<>();
         pickupInfo.put("pickupCode", pickupCode);
         pickupInfo.put("pickupToken", pickupToken);
@@ -218,23 +242,73 @@ public class OrderImpl implements OrderService {
             throw new RuntimeException("订单信息缺失");
         }
         int status = update.getOrderStatus() == null ? 0 : update.getOrderStatus();
-        if (status < 0 || status > 3) {
+        if (status < 0 || status > 4) {
             throw new RuntimeException("订单状态非法");
         }
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(update.getOrderId());
+        if (orderInfo == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        int previousStatus = orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus();
+        if (previousStatus == 4 && status != 4) {
+            throw new RuntimeException("已退款订单不可变更，需用户重新支付");
+        }
         LocalDateTime now = LocalDateTime.now();
+        if (status == 4) {
+            if (previousStatus == 4) {
+                return;
+            }
+            if (previousStatus == 0 || previousStatus == 2) {
+                throw new RuntimeException("订单未支付，无法退款");
+            }
+            if (previousStatus != 4) {
+                Double total = orderInfo.getTotalPrice() == null ? 0.0 : orderInfo.getTotalPrice();
+                if (total > 0) {
+                    Double balance = userMapper.getBalance(orderInfo.getUid());
+                    BigDecimal newBalance = BigDecimal.valueOf(balance).add(BigDecimal.valueOf(total))
+                            .setScale(2, RoundingMode.HALF_UP);
+                    userMapper.updateBalance(orderInfo.getUid(), newBalance.doubleValue());
+                }
+            }
+            List<Map<String, Object>> productInfo = orderMapper.getOrderDetailsProductCodes(update.getOrderId());
+            if (productInfo != null) {
+                for (Map<String, Object> entry : productInfo) {
+                    Integer quantity = entry.get("purchaseNum") == null ? 0 : Integer.parseInt(entry.get("purchaseNum").toString());
+                    String productCode = entry.get("productCode") == null ? null : entry.get("productCode").toString();
+                    if (productCode != null && quantity != null && quantity > 0) {
+                        productMapper.restoreProductStock(quantity, productCode);
+                    }
+                }
+            }
+            orderMapper.updateOrderStatus(update.getOrderId(), 4, 1, 0, null, now);
+            messageService.createMessageIfAbsent(
+                    orderInfo.getUid(),
+                    "ORDER_REFUND",
+                    String.valueOf(update.getOrderId()),
+                    "订单已退款",
+                    "订单 " + update.getOrderId() + " 已退款，可进入订单详情重新支付。"
+            );
+            return;
+        }
         Integer isCompleted = status == 0 ? 0 : 1;
         Integer pickupStatus = status == 3 ? 1 : 0;
         LocalDateTime pickupTime = status == 3 ? now : null;
         LocalDateTime completeDate = status == 0 ? null : now;
         orderMapper.updateOrderStatus(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate);
         if (status == 1) {
-            OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(update.getOrderId());
             if (orderInfo != null && (orderInfo.getPickupCode() == null || orderInfo.getPickupToken() == null)) {
                 String pickupCode = generatePickupCode(LocalDate.now());
                 String payload = update.getOrderId() + "|" + pickupCode + "|" + now;
                 String pickupToken = pickupTokenUtil.encrypt(payload);
                 orderMapper.updatePickupInfo(update.getOrderId(), pickupCode, pickupToken);
             }
+            messageService.createMessageIfAbsent(
+                    orderInfo.getUid(),
+                    "ORDER_PICKUP",
+                    String.valueOf(update.getOrderId()),
+                    "订单待取货",
+                    "订单 " + update.getOrderId() + " 待取货，请查看取件码与取货信息。"
+            );
         }
     }
 
@@ -347,5 +421,32 @@ public class OrderImpl implements OrderService {
             builder.append(LETTERS.charAt(idx));
         }
         return builder.toString();
+    }
+
+    private void validatePurchaseRules(Integer uid, Integer orderId) {
+        if (uid == null || orderId == null) {
+            throw new RuntimeException("璁㈠崟淇℃伅缂哄け");
+        }
+        List<Map<String, Object>> productInfo = orderMapper.getOrderDetailsProductCodes(orderId);
+        if (productInfo == null || productInfo.isEmpty()) {
+            throw new RuntimeException("璁㈠崟璇︽儏涓虹┖");
+        }
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1);
+        for (Map<String, Object> entry : productInfo) {
+            String productCode = entry.get("productCode") == null ? null : entry.get("productCode").toString();
+            Integer quantity = entry.get("purchaseNum") == null ? 0 : Integer.parseInt(entry.get("purchaseNum").toString());
+            if (productCode == null) {
+                continue;
+            }
+            CulturalProductInfo product = productMapper.getProductByCode(productCode);
+            if (product != null && product.getDisplayMode() != null && product.getDisplayMode().contains("线下")) {
+                throw new RuntimeException("门店限定商品无法在线购买");
+            }
+            int purchased = orderMapper.getMonthlyProductPurchaseSum(uid, productCode, startOfMonth, endOfMonth);
+            if (purchased + quantity > 5) {
+                throw new RuntimeException("每月每件商品限购5件");
+            }
+        }
     }
 }

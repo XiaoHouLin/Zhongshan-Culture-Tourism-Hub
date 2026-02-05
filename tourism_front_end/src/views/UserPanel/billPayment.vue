@@ -25,6 +25,7 @@ export default {
         caddress: '',
         cremark: ''
       },
+      targetOrderId: null,
       pickupAddress: '广东省中山市孙文西路156之1号',
       pickupDialogVisible: false,
       pickupMapReady: false,
@@ -39,6 +40,7 @@ export default {
       remainingSeconds: 0,
       countdownTimer: null,
       orderClosed: false,
+      showCountdown: true,
       amapKey:
         (typeof window !== 'undefined' && window.AMAP_KEY) ||
         process.env.VUE_APP_AMAP_KEY ||
@@ -50,6 +52,9 @@ export default {
     }
   },
   created() {
+    const target = this.$route.query.orderId;
+    const parsed = target ? Number(target) : null;
+    this.targetOrderId = Number.isFinite(parsed) ? parsed : null;
     this.getShoppingCart();
   },
   computed: {
@@ -79,6 +84,10 @@ export default {
       try {
         await this.getUserInfo();
         if (this.userInfo.uid !== undefined) {
+          if (this.targetOrderId) {
+            await this.loadOrderById(this.targetOrderId);
+            return;
+          }
           const info = await apiRear.get(`/order/getOrderInfoBy=${this.userInfo.uid}`);
           if (info.data.data.orderId !== null) {
             this.orderId = info.data.data.orderId;
@@ -87,6 +96,7 @@ export default {
             if (this.orderId.length !== 0) {
               this.currentOrderId = Array.isArray(this.orderId) ? this.orderId.at(0) : this.orderId;
               const remaining = Number(info.data.data.remainingSeconds);
+              this.showCountdown = true;
               this.initPaymentCountdown(remaining);
               const res = await apiRear.get(`/order/getOrderByOrderId=${this.orderId}`);
               this.shoppingCart = res.data.data;
@@ -99,6 +109,41 @@ export default {
       } catch (err) {
         this.$message.error('无法获取购物车数据');
       }
+    },
+    async loadOrderById(orderId) {
+      const listRes = await apiRear.get(`/order/getOrderByUID=${this.userInfo.uid}`);
+      const orders = listRes.data.data || [];
+      const target = orders.find(item => Number(item.orderId) === Number(orderId));
+      if (!target) {
+        this.$message.error('未找到指定订单');
+        this.$router.push('/userPanel/culturalProducts');
+        return;
+      }
+      const status = Number(target.orderStatus);
+      if (![0, 4].includes(status)) {
+        this.$message.error('当前订单无法支付');
+        this.$router.push('/userInfo');
+        return;
+      }
+      this.orderId = [target.orderId];
+      this.currentOrderId = target.orderId;
+      this.cartTotal = target.totalPrice || 0;
+      this.totalAmount = this.cartTotal;
+      this.orderClosed = false;
+      if (status === 0) {
+        const createDate = target.createDate || target.CreateDate;
+        if (createDate) {
+          const expireAt = new Date(createDate).getTime() + 15 * 60 * 1000;
+          const remaining = Math.max(0, Math.floor((expireAt - Date.now()) / 1000));
+          this.showCountdown = true;
+          this.initPaymentCountdown(remaining);
+        }
+      } else {
+        this.remainingSeconds = 0;
+        this.showCountdown = false;
+      }
+      const res = await apiRear.get(`/order/getOrderByOrderId=${target.orderId}`);
+      this.shoppingCart = res.data.data || [];
     },
     async payment() {
       try {
@@ -405,7 +450,7 @@ export default {
             <i class="el-icon-location-outline"></i>
             <span>仅支持线下自取 · 点击查看门店地图</span>
           </div>
-          <div class="countdown-card" :class="{ expired: orderClosed }">
+          <div v-if="showCountdown" class="countdown-card" :class="{ expired: orderClosed }">
             <i class="el-icon-timer"></i>
             <span>{{ countdownText }}</span>
           </div>

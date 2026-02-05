@@ -1,8 +1,15 @@
 <script>
 
 import {apiRear} from "@/axios";
-import {toInteger} from "lodash/lang";
 import {jwtDecode} from "jwt-decode";
+
+const productImageContext = require.context('@/assets/culturalProducts', false, /\.png$/);
+const productImages = productImageContext.keys().reduce((acc, key) => {
+  const fileName = key.replace('./', '').replace(/\.png$/, '');
+  acc[fileName] = productImageContext(key);
+  return acc;
+}, {});
+const fallbackImage = productImages['1'];
 
 export default {
   data() {
@@ -48,29 +55,6 @@ export default {
         minStock: null,
         maxStock: null
       },
-      images: [
-        require('@/assets/culturalProducts/1.png'),
-        require('@/assets/culturalProducts/2.png'),
-        require('@/assets/culturalProducts/3.png'),
-        require('@/assets/culturalProducts/4.png'),
-        require('@/assets/culturalProducts/5.png'),
-        require('@/assets/culturalProducts/6.png'),
-        require('@/assets/culturalProducts/7.png'),
-        require('@/assets/culturalProducts/8.png'),
-        require('@/assets/culturalProducts/9.png'),
-        require('@/assets/culturalProducts/10.png'),
-        require('@/assets/culturalProducts/11.png'),
-        require('@/assets/culturalProducts/12.png'),
-        require('@/assets/culturalProducts/13.png'),
-        require('@/assets/culturalProducts/14.png'),
-        require('@/assets/culturalProducts/15.png'),
-        require('@/assets/culturalProducts/16.png'),
-        require('@/assets/culturalProducts/17.png'),
-        require('@/assets/culturalProducts/18.png'),
-        require('@/assets/culturalProducts/19.png'),
-        require('@/assets/culturalProducts/20.png'),
-        require('@/assets/culturalProducts/21.png')
-      ],
       classifyButtons: [
         {text: '🏞️全系文创', isClicked: false},
         {text: '🏯城市地标', isClicked: false},
@@ -103,7 +87,15 @@ export default {
       activeQuickFilter: 'hot',
       trendSelection: [],
       historyProductCodes: [],
-      historyCategories: []
+      historyCategories: [],
+      travelEmojis: [
+        {emoji: '🏞️', label: '山水自然'},
+        {emoji: '🏛️', label: '人文历史'},
+        {emoji: '🌊', label: '滨海慢游'},
+        {emoji: '🌃', label: '夜游城市'}
+      ],
+      activeTravelEmoji: '🏞️',
+      selectedProductIsOffline: false
     };
   },
   created() {
@@ -121,6 +113,20 @@ export default {
     },
     isPanelRoute() {
       return this.$route.path.startsWith('/userPanel');
+    },
+    authority() {
+      const token = sessionStorage.getItem('token');
+      if (!token) {
+        return null;
+      }
+      try {
+        return jwtDecode(token).authority;
+      } catch (error) {
+        return null;
+      }
+    },
+    hasPanelAside() {
+      return this.isPanelRoute && this.authority === 1;
     },
     filteredTableData() {
       const data = [...this.tableData];
@@ -157,33 +163,35 @@ export default {
       }
     },
     tableDataWithImages() {
-      //index % this.images.length  顺序显示
+      // Use productCode image when available, otherwise fallback to 1.png
       return this.filteredTableData.map((item, index) => ({
         ...item,
-        imageUrl: this.images[(index % this.images.length)]
+        imageUrl: this.resolveProductImage(item.productCode, index)
       }));
+    },
+    activeProduct() {
+      return this.tableData[Number(this.productIndex)] || null;
     },
     cartItemsDetailed() {
       return this.shoppingCart.map((item, index) => {
         const matched = this.tableDataWithImages.find(product => product.productCode === item.productCode);
-        const imageIndex = this.getImageIndex(item.productCode, index);
         return {
           ...item,
-          imageUrl: matched ? matched.imageUrl : this.images[imageIndex],
+          imageUrl: matched ? matched.imageUrl : this.resolveProductImage(item.productCode, index),
           stock: matched && typeof matched.stock !== 'undefined' ? matched.stock : null
         };
       });
     }
   },
   methods: {
-    toInteger,
-    getImageIndex(code, fallbackIndex) {
-      const text = String(code || fallbackIndex || '');
-      let hash = 0;
-      for (let i = 0; i < text.length; i++) {
-        hash = (hash + text.charCodeAt(i)) % this.images.length;
+    resolveProductImage(productCode) {
+      if (productCode && productImages[productCode]) {
+        return productImages[productCode];
       }
-      return hash;
+      return fallbackImage || '';
+    },
+    isOfflineProduct(item) {
+      return item && item.displayMode && String(item.displayMode).includes('线下');
     },
     getUidFromToken() {
       const token = sessionStorage.getItem('token');
@@ -371,6 +379,13 @@ export default {
       if (index === 0) {
         value = '';
       }
+      if (searchField === 'displayMode') {
+        if (index === 1) {
+          value = '线上';
+        } else if (index === 2) {
+          value = '线下';
+        }
+      }
       this.search[searchField] = value;
       this.handle_loadItems();
     },
@@ -445,6 +460,9 @@ export default {
       this.search.page = newPage;
       this.loadItems();
     },
+    selectTravelEmoji(emoji) {
+      this.activeTravelEmoji = emoji;
+    },
     handleAddToCart(item) {
       if (!this.isLoggedIn) {
         this.requireLogin('加入购物车');
@@ -458,11 +476,16 @@ export default {
       this.purchaseQuantity = 0;
       this.currentProductTotal = '0.00';
       this.maxAvailableStock = this.tableData[index].stock;
+      this.selectedProductIsOffline = this.isOfflineProduct(this.tableData[index]);
       this.productIndex = index;
     },
     purchaseHandle() {
       if (!this.isLoggedIn) {
         this.requireLogin('下单');
+        return;
+      }
+      if (this.selectedProductIsOffline) {
+        this.$message.warning('门店限定商品仅支持线下购买');
         return;
       }
       if (!this.isValidQuantity(this.purchaseQuantity, this.maxAvailableStock)) {
@@ -493,6 +516,10 @@ export default {
       this.purchaseDialogVisible = false;
     },
     updateCurrentProductTotal() {
+      if (this.selectedProductIsOffline) {
+        this.currentProductTotal = '0.00';
+        return;
+      }
       this.currentProductTotal = (this.purchaseQuantity * this.tableData[this.productIndex].price).toFixed(2);
     },
     updateCartTotal() {
@@ -587,6 +614,11 @@ export default {
     validateCartBeforeCheckout() {
       for (const item of this.shoppingCart) {
         const stock = this.getCartStock(item.productCode);
+        const product = this.tableData.find(productItem => productItem.productCode === item.productCode);
+        if (product && this.isOfflineProduct(product)) {
+          this.$message.error('门店限定商品无法在线购买');
+          return false;
+        }
         const quantity = Number(item.purchaseNum);
         if (!this.isValidQuantity(quantity, stock)) {
           return false;
@@ -643,7 +675,7 @@ export default {
 
 
 <template>
-  <el-container class="shop-layout" :class="{ 'with-aside': isPanelRoute }">
+  <el-container class="shop-layout" :class="{ 'with-aside': hasPanelAside }">
     <el-main class="shop-main">
       <button class="back-button" @click="$router.push('/indexView')">
         <i class="el-icon-arrow-left"></i>
@@ -672,6 +704,19 @@ export default {
         </el-card>
         <el-card v-if="isLoggedIn" shadow="hover" class="border shop-top-card">
           <p class="strong" style="font-size: 130%;margin: 10px">😣旅行偏好</p>
+          <div class="travel-emoji-grid">
+            <button
+              v-for="item in travelEmojis"
+              :key="item.emoji"
+              type="button"
+              class="travel-emoji-btn"
+              :class="{ active: activeTravelEmoji === item.emoji }"
+              @click="selectTravelEmoji(item.emoji)"
+            >
+              <span>{{ item.emoji }}</span>
+            </button>
+          </div>
+          <p class="travel-emoji-tip">选择一个最贴合你的旅行动线</p>
           <p class="strong symptom-text" style="font-size: 13px;margin: 10px;text-align: center;">
             {{ userInfo.csymptom ? userInfo.csymptom : "暂无数据" }}
           </p>
@@ -713,61 +758,52 @@ export default {
         <el-dialog
             title="文创产品详情"
             :visible.sync="purchaseDialogVisible"
-            width="30%"
+            width="60%"
             center>
-          <div class="demo-image center">
-            <el-image
-                class="card-image-container"
-                :src="images[toInteger(productIndex)]"
-            ></el-image>
-          </div>
-          <div style="display: flex;align-items: center;flex-direction: column;">
-            <p v-if="tableData[productIndex]" style="font-size: 3vh;margin-bottom: 1vh" class="strong">
-              {{ tableData[productIndex].productName }}</p>
-            <p v-if="tableData[productIndex]" style="font-size: 95%;margin-bottom: 1vh" class="strong">
-              产品编号：{{ tableData[productIndex].productCode }}</p>
-            <p v-else style="font-size: 3vh;margin-bottom: 1vh" class="strong">未找到对应文创产品信息</p>
-          </div>
-          <el-card shadow="hover" class="products-info-card">
-            <span v-if="tableData[productIndex]" style="font-size: 100%" class="strong">
-              分类：{{ tableData[productIndex].category }}</span>
-            <span v-else style="font-size: 100%" class="strong">未找到对应文创产品分类</span>
-          </el-card>
-          <el-card shadow="hover" class="products-info-card">
-            <span v-if="tableData[productIndex]" style="font-size: 100%" class="strong">
-              展示形式：{{ tableData[productIndex].displayMode }}</span>
-            <span v-else style="font-size: 100%" class="strong">未找到对应文创产品展示形式</span>
-          </el-card>
-          <el-card shadow="hover" class="products-info-card">
-            <span v-if="tableData[productIndex]" style="font-size: 100%" class="strong">
-              产品亮点：{{ tableData[productIndex].highlight }}</span>
-            <span v-else style="font-size: 100%" class="strong">未找到对应产品亮点</span>
-          </el-card>
-          <el-card shadow="hover" class="products-info-card">
-            <span v-if="tableData[productIndex]" style="font-size: 100%" class="strong">
-              库存：{{ tableData[productIndex].stock }}</span>
-            <span v-else style="font-size: 100%" class="strong">未找到对应库存信息</span>
-          </el-card>
-          <el-card class="products-info-card">
-            <span style="font-size: 100%" class="strong">购买数量：</span>
-            <div class="center">
-              <el-input-number
+          <div class="product-detail">
+            <div class="detail-media">
+              <el-image
+                class="detail-image"
+                :src="resolveProductImage(activeProduct && activeProduct.productCode)"
+                fit="cover"
+              ></el-image>
+              <div class="detail-tags">
+                <el-tag v-if="activeProduct" effect="dark" type="success">{{ activeProduct.category }}</el-tag>
+                <el-tag v-if="activeProduct" effect="dark" type="warning">{{ activeProduct.displayMode }}</el-tag>
+                <el-tag v-if="selectedProductIsOffline" effect="dark" type="danger">门店限定</el-tag>
+                <el-tag v-if="activeProduct" effect="dark" type="info">库存 {{ activeProduct.stock }}</el-tag>
+              </div>
+            </div>
+            <div class="detail-info">
+              <p class="detail-eyebrow">中山文创 · 产品详情</p>
+              <h3 class="detail-title">{{ activeProduct ? activeProduct.productName : '未找到对应文创产品信息' }}</h3>
+              <p class="detail-code">编号：{{ activeProduct ? activeProduct.productCode : '--' }}</p>
+              <p class="detail-highlight">
+                {{ activeProduct ? activeProduct.highlight : '暂无产品亮点说明' }}
+              </p>
+              <p v-if="selectedProductIsOffline" class="detail-offline-note">门店限定商品仅支持线下购买</p>
+              <div class="detail-price">
+                ￥{{ activeProduct ? Number(activeProduct.price).toFixed(2) : '--' }}
+              </div>
+              <div class="detail-quantity">
+                <span>购买数量</span>
+                <el-input-number
                   v-model="purchaseQuantity"
+                  :disabled="selectedProductIsOffline"
                   :min="1"
                   :precision="0"
                   :step="1"
                   :max="maxAvailableStock"
                   @input="updateCurrentProductTotal"
                   label="购买数量">
-              </el-input-number>
+                </el-input-number>
+              </div>
+              <div class="detail-total">总计：￥{{ currentProductTotal }}</div>
             </div>
-          </el-card>
-          <el-card class="products-info-card strong" style="color: #409EFF;font-size: 3vh;margin: 0">
-            总计：￥{{ currentProductTotal }}
-          </el-card>
+          </div>
           <span slot="footer" class="dialog-footer">
               <el-button @click="purchaseDialogVisible = false">取 消</el-button>
-              <el-button type="primary" @click="purchaseHandle">确 定</el-button>
+              <el-button type="primary" :disabled="selectedProductIsOffline" @click="purchaseHandle">确 定</el-button>
              </span>
         </el-dialog>
 
@@ -873,6 +909,7 @@ export default {
                       <p class="strong">分类：{{ item.category }}</p>
                       <div style="display: flex;justify-content: space-between; align-items: center;">
                         <p class="strong">库存：{{ item.stock }}</p>
+                        <el-tag v-if="isOfflineProduct(item)" class="strong" type="warning" effect="dark">门店限定</el-tag>
                         <el-tag v-if="item.stock <= 0" class="strong" type="danger" effect="dark">已售罄
                         </el-tag>
                       </div>
@@ -1055,6 +1092,96 @@ export default {
   background: rgba(31, 122, 109, 0.22);
 }
 
+.product-detail {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(260px, 1.2fr);
+  gap: 24px;
+  align-items: stretch;
+}
+
+.detail-media {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-image {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1 / 1;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(31, 122, 109, 0.08);
+}
+
+.shop-layout :deep(.detail-image .el-image__inner) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.detail-info {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.detail-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.26em;
+  color: rgba(64, 54, 44, 0.65);
+  text-transform: uppercase;
+  margin: 0;
+}
+
+.detail-title {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+}
+
+.detail-code {
+  font-size: 13px;
+  color: rgba(64, 54, 44, 0.6);
+  margin: 0;
+}
+
+.detail-highlight {
+  font-size: 14px;
+  line-height: 1.7;
+  color: rgba(64, 54, 44, 0.8);
+  margin: 0;
+}
+
+.detail-price {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--teal);
+}
+
+.detail-quantity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+  color: rgba(64, 54, 44, 0.8);
+}
+
+.detail-total {
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(31, 122, 109, 0.12);
+  font-weight: 700;
+  color: var(--teal);
+}
+
 .search-button {
   background-color: var(--accent);
   color: #ffffff;
@@ -1105,6 +1232,46 @@ export default {
 
 .shop-top-card--balance {
   text-align: left;
+}
+
+.travel-emoji-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  margin: 6px 10px 2px;
+}
+
+.travel-emoji-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  border: 1px solid rgba(31, 122, 109, 0.18);
+  background: rgba(31, 122, 109, 0.08);
+  font-size: 22px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.travel-emoji-btn.active {
+  transform: scale(1.12);
+  background: rgba(199, 90, 49, 0.18);
+  border-color: rgba(199, 90, 49, 0.5);
+  box-shadow: 0 10px 20px rgba(199, 90, 49, 0.2);
+}
+
+.travel-emoji-tip {
+  margin: 4px 10px 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  text-align: center;
+}
+
+.detail-offline-note {
+  margin: 0;
+  color: #c75a31;
+  font-weight: 600;
+  font-size: 13px;
 }
 
 .shop-quick-filters {
@@ -1183,8 +1350,8 @@ export default {
 }
 
 .shop-layout.with-aside .footer-bar {
-  left: 200px;
-  width: calc(100% - 200px);
+  left: 220px;
+  width: calc(100% - 220px);
 }
 
 .footer-cart {
@@ -1418,6 +1585,15 @@ export default {
 @media (max-width: 1200px) {
   .shop-top-grid {
     grid-template-columns: 1fr;
+  }
+
+  .product-detail {
+    grid-template-columns: 1fr;
+  }
+
+  .detail-image {
+    height: auto;
+    aspect-ratio: 1 / 1;
   }
 }
 </style>

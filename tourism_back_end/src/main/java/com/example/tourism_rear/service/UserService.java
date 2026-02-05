@@ -90,6 +90,21 @@ public interface UserService {
     boolean updatePassword(Integer uid, String oldPassword, String newPassword);
 
     /**
+     * 通过用户名获取邮箱
+     */
+    String getEmailByUsername(String username);
+
+    /**
+     * 通过邮箱获取用户名
+     */
+    String getUsernameByEmail(String email);
+
+    /**
+     * 通过邮箱重置密码
+     */
+    boolean resetPasswordByEmail(String email, String newPassword);
+
+    /**
      * 获取经办人信息（编号，名字，年龄，性别）
      */
 }

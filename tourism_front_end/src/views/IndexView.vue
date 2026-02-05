@@ -1,12 +1,16 @@
 ﻿
 <script>
 import {jwtDecode} from 'jwt-decode';
+import MessageCenter from '@/components/MessageCenter.vue';
 //TODO:项目存在较多中文字符为问号，如???????,需要在项目完成后统一检查
 const AMAP_SCRIPT_ID = 'amap-js-sdk';
 const AMAP_UI_SCRIPT_ID = 'amap-ui-sdk';
 
 export default {
   name: 'IndexView',
+  components: {
+    MessageCenter
+  },
   data() {
     return {
       navLinks: [
@@ -358,6 +362,21 @@ export default {
         this.token = '';
         sessionStorage.removeItem('token');
       }
+    },
+    getOrderStatus(order) {
+      if (order && order.orderStatus !== undefined && order.orderStatus !== null) {
+        return Number(order.orderStatus);
+      }
+      if (order && order.pickupStatus === 1) {
+        return 3;
+      }
+      if (order && order.pickupStatus === 0) {
+        return 1;
+      }
+      if (order && order.completeDate) {
+        return 3;
+      }
+      return 0;
     },
     isActive(route) {
       if (route === '/' && (this.currentPath === '/' || this.currentPath === '/indexView')) {
@@ -1125,6 +1144,10 @@ export default {
           </button>
         </div>
           <div class="nav-actions">
+            <message-center
+              class="nav-message-center"
+              :uid="currentUser && currentUser.uid"
+            />
             <template v-if="!isLoggedIn">
               <el-button type="default" plain class="nav-action" @click="goTo('/login')">登录</el-button>
               <el-button type="primary" class="nav-action" @click="goTo('/register')">注册</el-button>
@@ -1633,6 +1656,10 @@ export default {
     gap: 10px;
     height: 100%;
     justify-self: end;
+  }
+
+  .nav-message-center {
+    margin-right: 2px;
   }
 
   .user-trigger {

@@ -5,6 +5,7 @@ import {apiRear} from "@/axios";
 import _ from 'lodash';
 import {simpleDataConverter} from 'v-charts-v2/lib/converter';
 import QRCode from 'qrcode';
+import MessageCenter from '@/components/MessageCenter.vue';
 
 const validateUsername = (rule, value, callback) => {
   if (value === '') {
@@ -34,6 +35,9 @@ const validateOptionalAge = (rule, value, callback) => {
 
 export default {
   name: 'UserInfo',
+  components: {
+    MessageCenter
+  },
   data() {
     const validateOldPass = (rule, value, callback) => {
       if (!value) {
@@ -129,7 +133,8 @@ export default {
         { value: 0, label: '待支付' },
         { value: 1, label: '待取货' },
         { value: 2, label: '已关闭' },
-        { value: 3, label: '已完成' }
+        { value: 3, label: '已完成' },
+        { value: 4, label: '已退款' }
       ],
       edit: {
         username: '',
@@ -139,7 +144,6 @@ export default {
         cage: 0,
         caddress: '',
         cphone: '',
-        csymptom: '',
         cremark: '',
         newPassword: '',
         oldPassword: '',
@@ -188,6 +192,13 @@ export default {
       } else {
         return '未知';
       }
+    },
+    formattedAge() {
+      const age = this.userInfo.cage;
+      if (age === null || age === undefined || age === '' || age === 0 || age === '0') {
+        return '空';
+      }
+      return age;
     },
     isEditInvalid() {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
@@ -360,7 +371,7 @@ export default {
           order.completeDate || '',
           order.pickupCode || '',
           this.getOrderStatusLabel(this.getOrderStatus(order)),
-          order.pickupStatus ? '已取货' : '待取货'
+          this.getPickupStatusLabel(order)
         ].map(toCsvValue).join(',');
       });
       const csv = ['\ufeff' + headers.join(',')].concat(lines).join('\n');
@@ -396,9 +407,22 @@ export default {
     getOrderStatusTagType(status) {
       const value = Number(status);
       if (value === 3) return 'success';
+      if (value === 4) return 'info';
       if (value === 2) return 'info';
       if (value === 1) return 'warning';
       return 'danger';
+    },
+    getPickupStatusLabel(order) {
+      const status = this.getOrderStatus(order);
+      if (status === 1) return '待取货';
+      if (status === 3) return '已取货';
+      return '暂无';
+    },
+    getPickupStatusTagType(order) {
+      const status = this.getOrderStatus(order);
+      if (status === 1) return 'warning';
+      if (status === 3) return 'success';
+      return 'info';
     },
     getPickupVerifyUrl(token) {
       if (!token) {
@@ -551,12 +575,66 @@ export default {
         this.$message.error('无法获取全部订单信息');
       }
     },
+    /*
+    syncOrderNotifications() {
+      if (!this.uid || !this.isCustomer) {
+        return;
+      }
+      const context = {uid: this.uid, username: this.userInfo.username || ''};
+      this.orders.forEach(order => {
+        const status = this.getOrderStatus(order);
+        if (status === 0) {
+          addMessage(context, {
+            id: `order-${order.orderId}-pending`,
+            title: '订单待支付',
+            content: `订单 ${order.orderId} 尚未支付，请在订单详情中完成付款。`,
+            time: formatMessageTime(),
+            read: false,
+            action: '/userInfo'
+          });
+        }
+        if (status === 1) {
+          addMessage(context, {
+            id: `order-${order.orderId}-pickup`,
+            title: '订单待取货',
+            content: `订单 ${order.orderId} 待取货，请留意取件码与取货时间。`,
+            time: formatMessageTime(),
+            read: false,
+            action: '/userInfo'
+          });
+        }
+        if (status === 4) {
+          addMessage(context, {
+            id: `order-${order.orderId}-refund`,
+            title: '订单已退款',
+            content: `订单 ${order.orderId} 已退款，可进入订单详情重新支付。`,
+            time: formatMessageTime(),
+            read: false,
+            action: '/userInfo'
+          });
+        }
+      });
+      this.$nextTick(() => {
+        if (this.$refs.messageCenter) {
+          this.$refs.messageCenter.refresh();
+        }
+      });
+    },
+    */
     async updateOrderStatus(order) {
       const previous = order.orderStatus;
       try {
+        const targetStatus = Number(order.orderStatus);
+        if (targetStatus === 4 && Number(previous) !== 4) {
+          await this.$confirm('确认将该订单设为已退款？系统将把订单金额退回给用户。', '二次确认', {
+            confirmButtonText: '确认退款',
+            cancelButtonText: '取消',
+            type: 'warning'
+          });
+        }
         const response = await apiRear.post('/order/admin/status', {
           orderId: order.orderId,
-          orderStatus: Number(order.orderStatus)
+          orderStatus: targetStatus
         });
         if (response.data.code === 1) {
           this.$message.success('订单状态已更新');
@@ -567,7 +645,9 @@ export default {
         }
       } catch (error) {
         order.orderStatus = previous;
-        this.$message.error('更新失败，请稍后再试');
+        if (error !== 'cancel' && error !== 'close') {
+          this.$message.error('更新失败，请稍后再试');
+        }
       }
     },
     async getOrderSummary() {
@@ -598,6 +678,13 @@ export default {
       } catch (err) {
         this.$message.error('无法获取订单详情');
       }
+    },
+    repayOrder(order) {
+      if (!order || !order.orderId) {
+        return;
+      }
+      this.dialog_orderDetail = false;
+      this.$router.push({path: '/billPayment', query: {orderId: order.orderId}}).catch(() => {});
     },
     computeOrderStats() {
       const totalOrders = this.orders.length;
@@ -664,6 +751,11 @@ export default {
     <button v-if="isCustomer" class="back-button" @click="goHome">
       <i class="el-icon-arrow-left"></i>
     </button>
+    <message-center
+      ref="messageCenter"
+      class="panel-message-center"
+      :uid="uid"
+    />
     <el-dialog
       title="通过支付宝充值"
       :visible.sync="dialog_zfb"
@@ -749,6 +841,7 @@ export default {
               v-if="isAdmin"
               v-model="scope.row.orderStatus"
               size="mini"
+              :disabled="Number(scope.row.orderStatus) === 4"
               @change="() => updateOrderStatus(scope.row)"
             >
               <el-option
@@ -765,8 +858,8 @@ export default {
         </el-table-column>
         <el-table-column prop="pickupStatus" label="取货状态" width="110">
           <template slot-scope="scope">
-            <el-tag :type="scope.row.pickupStatus ? 'success' : 'warning'">
-              {{ scope.row.pickupStatus ? '已取货' : '待取货' }}
+            <el-tag :type="getPickupStatusTagType(scope.row)">
+              {{ getPickupStatusLabel(scope.row) }}
             </el-tag>
           </template>
         </el-table-column>
@@ -806,8 +899,8 @@ export default {
         <div class="pickup-code">
           <h4>取件码</h4>
           <p>{{ selectedOrder.pickupCode || '待生成' }}</p>
-          <el-tag :type="selectedOrder.pickupStatus ? 'success' : 'warning'">
-            {{ selectedOrder.pickupStatus ? '已取货' : '待取货' }}
+          <el-tag :type="getPickupStatusTagType(selectedOrder)">
+            {{ getPickupStatusLabel(selectedOrder) }}
           </el-tag>
         </div>
         <div class="pickup-qr">
@@ -826,6 +919,9 @@ export default {
         <p style="font-weight: bold;margin-left: 12px">地址：{{ detailContact.address || '暂无' }}</p>
         <p style="font-weight: bold;margin-left: 12px">备注：{{ detailContact.remark || '暂无' }}</p>
       </el-card>
+      <div class="order-detail-actions" v-if="selectedOrder && isCustomer && getOrderStatus(selectedOrder) === 4">
+        <el-button type="primary" round @click="repayOrder(selectedOrder)">重新支付</el-button>
+      </div>
     </el-dialog>
     <el-dialog
       title="编辑资料"
@@ -999,7 +1095,7 @@ export default {
             <i class="el-icon-time"></i>
             <span class="strong">年龄</span>
           </template>
-          <span class="strong">{{ userInfo.cage }}</span>
+          <span class="strong">{{ formattedAge }}</span>
         </el-descriptions-item>
         <el-descriptions-item>
           <template slot="label">
@@ -1014,13 +1110,6 @@ export default {
             <span class="strong">创建日期</span>
           </template>
           <span class="strong">{{ userInfo.cdate }}</span>
-        </el-descriptions-item>
-        <el-descriptions-item>
-          <template slot="label">
-            <i class="el-icon-message"></i>
-            <span class="strong">症状</span>
-          </template>
-          <span class="strong">{{ userInfo.csymptom }}</span>
         </el-descriptions-item>
         <el-descriptions-item>
           <template slot="label">
@@ -1450,6 +1539,12 @@ export default {
   font-size: 12px;
 }
 
+.order-detail-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
 .order-id {
   margin: 0;
   font-weight: 600;
@@ -1523,6 +1618,13 @@ export default {
 
 .back-button:hover {
   background: #17675d;
+}
+
+.panel-message-center {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 50;
 }
 
 .panel-card:hover {
