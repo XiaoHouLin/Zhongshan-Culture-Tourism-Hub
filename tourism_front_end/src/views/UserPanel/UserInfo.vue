@@ -909,7 +909,6 @@ export default {
             <img :src="pickupQrUrl" alt="取货二维码" />
           </div>
           <p v-else class="pickup-qr-empty">暂无二维码</p>
-          <small>二维码为加密内容，需管理员扫码确认取货。</small>
         </div>
       </div>
       <el-card shadow="hover" class="tips-card">

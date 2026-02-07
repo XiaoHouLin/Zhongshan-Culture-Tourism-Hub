@@ -38,3 +38,9 @@ jwt:
 
 pickup:
   secret: ${PICKUP_SECRET:ZhongshanPickupSecret}
+
+qwen:
+  api-key: ${QWEN_API_KEY:}
+  base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
+  model: ${QWEN_MODEL:qwen3-max-2026-01-23}
+  timeout-ms: ${QWEN_TIMEOUT_MS:12000}

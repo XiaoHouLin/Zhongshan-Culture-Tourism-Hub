@@ -29,6 +29,16 @@ public interface CulturalProductService {
     boolean isProductCodeUnique(String productCode);
 
     /**
+     * 获取下一个可用的文创产品编号（顺延，不复用已删除编号）。
+     */
+    String nextProductCode();
+
+    /**
+     * 获取当前已有的文创产品分类列表。
+     */
+    List<String> listCategories();
+
+    /**
      * 分页查询文创产品。
      */
     PageBean list(Integer page, Integer pageSize,

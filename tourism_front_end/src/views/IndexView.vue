@@ -2,14 +2,16 @@
 <script>
 import {jwtDecode} from 'jwt-decode';
 import MessageCenter from '@/components/MessageCenter.vue';
-//TODO:项目存在较多中文字符为问号，如???????,需要在项目完成后统一检查
+import ChatAssistant from '@/components/ChatAssistant.vue';
+// TODO: 首页逻辑维护记录，文案统一使用 UTF-8 编码
 const AMAP_SCRIPT_ID = 'amap-js-sdk';
 const AMAP_UI_SCRIPT_ID = 'amap-ui-sdk';
 
 export default {
   name: 'IndexView',
   components: {
-    MessageCenter
+    MessageCenter,
+    ChatAssistant
   },
   data() {
     return {
@@ -1508,6 +1510,7 @@ export default {
         <p>© 中山市城市文化旅游特色展示系统 · 学生项目</p>
       </footer>
     </el-main>
+    <chat-assistant :is-logged-in="isLoggedIn" />
   </el-container>
 </template>
 

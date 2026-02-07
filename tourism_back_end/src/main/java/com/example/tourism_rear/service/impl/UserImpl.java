@@ -18,6 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Date;
 import java.util.List;
 
 @Service
@@ -38,6 +39,12 @@ public class UserImpl implements UserService {
     @Override
     public void addUserInfo(UserInfo userInfo) {
         userInfo.setPassword(encodePasswordIfNeeded(userInfo.getPassword()));
+        if (userInfo.getCdate() == null) {
+            userInfo.setCdate(new Date());
+        }
+        if (userInfo.getBalance() == null) {
+            userInfo.setBalance(0.0);
+        }
         userMapper.insertUser(userInfo);
         userInfo.setUid(userMapper.getUidByUsername(userInfo.getUsername()));
         String uidStr = Integer.toString(userInfo.getUid());
@@ -82,11 +89,11 @@ public class UserImpl implements UserService {
     @Override
     public PageBean list(Integer page, Integer pageSize, Integer uid, String username,
                          String email, Integer authority, String cno, String cname, String csex, Integer cage,
-                         String caddress, String cphone, String csymptom, String startDate, String endDate, String cremark, Double balance) {
+                         String caddress, String cphone, String startDate, String endDate, String cremark, Double balance) {
         try (Page<?> ignored = PageHelper.startPage(page, pageSize)) {
             List<UserInfo> userInfoList = userMapper.list(uid, username,
                     email, authority, cno, cname, csex, cage,
-                    caddress, cphone, csymptom, startDate, endDate, cremark, balance);
+                    caddress, cphone, startDate, endDate, cremark, balance);
             userInfoList.forEach(userInfo -> userInfo.setPassword("Unknown"));
             Page<UserInfo> userInfoPage = (Page<UserInfo>) userInfoList;
             return new PageBean(userInfoPage.getTotal(), userInfoPage.getResult());

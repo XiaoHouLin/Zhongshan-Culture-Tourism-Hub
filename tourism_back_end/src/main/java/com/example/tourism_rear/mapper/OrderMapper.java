@@ -18,15 +18,15 @@ import java.util.Map;
 @Mapper
 public interface OrderMapper {
 
-    // 娣诲姞璁㈠崟
+    // 添加订单
     @Insert("INSERT INTO `order`(uid, CreateDate, totalPrice, isCompleted, orderStatus) VALUES (#{order.uid},#{localDateTime},#{order.totalProductPrice},false,0)")
     @Options(useGeneratedKeys = true, keyProperty = "order.orderId", keyColumn = "orderId")
     void addOrder(OrderRequest order, LocalDateTime localDateTime);
 
-    // 娣诲姞璁㈠崟璇︽儏
+    // 添加订单详情
     void addOrderDetails(OrderRequest order);
 
-    // 鏌ヨ璁㈠崟
+    // 查询订单
     @Select("SELECT productCode, purchaseNum, price, productName FROM orderDetails WHERE orderId = #{orderId}")
     List<Order> listOrder(Integer orderId);
 
@@ -50,7 +50,7 @@ public interface OrderMapper {
             "ORDER BY o.CreateDate DESC")
     List<com.example.tourism_rear.pack.utils.OrderAdminView> listAllOrders();
 
-    // 鏌ヨ璁㈠崟鎬讳环
+    // 查询订单总价
     @Select("SELECT totalPrice FROM `order` WHERE uid = #{uid} and isCompleted = 0")
     Double getTotalPrice(Integer uid);
 
@@ -61,26 +61,26 @@ public interface OrderMapper {
     @Select("SELECT count(*) FROM `order` WHERE CreateDate >= #{start} AND CreateDate < #{end}")
     int countOrdersByDate(LocalDateTime start, LocalDateTime end);
 
-    // 鏍规嵁uid鏌ヨ璁㈠崟鏁伴噺
+    // 根据 uid 查询订单数量
     List<Integer> getOrderNumber(Integer uid, boolean status);
 
-    // 鍒犻櫎璁㈠崟璇︽儏
+    // 删除订单详情
     @Select("DELETE FROM orderDetails WHERE orderId = #{orderId}")
     void deleteOrderDetails(OrderRequest order);
 
-    // 鏇存柊璁㈠崟鎬讳环
+    // 更新订单总价
     @Select("UPDATE `order` SET totalPrice = #{totalProductPrice} WHERE orderId = #{orderId}")
     void updateOrderTotalPrice(OrderRequest order);
 
-    // 鑾峰彇璁㈠崟璇︽儏涓喘涔扮殑鏂囧垱浜у搧鏁伴噺
+    // 获取订单详情中购买的文创产品数量
     @Select("SELECT count(*) FROM orderDetails WHERE orderId = #{orderId}")
     int getOrderDetailsNumber(OrderRequest order);
 
-    // 鏍规嵁orderId鑾峰彇璁㈠崟璇︽儏涓墍鏈夌殑鏂囧垱浜у搧缂栧彿浠ュ強瀵瑰簲璐拱鏁伴噺
+    // 根据 orderId 获取订单详情中所有文创产品编号及对应购买数量
     @Select("SELECT productCode, purchaseNum FROM orderDetails WHERE orderId = #{orderId}")
     List<Map<String, Object>> getOrderDetailsProductCodes(Integer orderId);
 
-    // 鑾峰彇璁㈠崟璇︽儏
+    // 获取订单详情
     @Select("SELECT productCode, purchaseNum, price, productName FROM orderDetails WHERE orderId = #{orderId}")
     List<Order> getOrderDetail(Integer orderId);
 
@@ -109,9 +109,9 @@ public interface OrderMapper {
                                      @Param("start") LocalDateTime start,
                                      @Param("end") LocalDateTime end);
 
-    // 鍒犻櫎璁㈠崟
+    // 删除订单
     void deleteOrder(List<Integer> orderId);
 
-    // 鏀粯璁㈠崟锛岃缃鍗曠姸鎬侊紝鏇存柊鐢ㄦ埛浣欓
+    // 支付订单，设置订单状态并更新用户余额
     void setOrderStatus(OrderInfo order, LocalDateTime localDateTime);
 }

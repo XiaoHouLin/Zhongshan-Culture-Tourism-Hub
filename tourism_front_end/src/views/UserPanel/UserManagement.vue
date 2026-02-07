@@ -24,60 +24,52 @@ const validateCno = (rule, value, callback) => {
   }
 };
 const validateCname = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入姓名'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback();
   }
+  callback();
 };
 const validateCage = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入年龄'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback();
   }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return callback(new Error('年龄需为不小于0的数字'));
+  }
+  callback();
 };
 const validateCaddress = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入地址'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback();
   }
+  callback();
 };
 const validateCphone = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入电话'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback(new Error('请输入电话'));
   }
-};
-const validateCsymptom = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入症状'));
-  } else {
-    callback();
+  const digits = String(value).replace(/\D/g, '');
+  if (digits.length !== 11) {
+    return callback(new Error('手机号需为11位数字'));
   }
+  callback();
 };
 const validateCremark = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入备注'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback();
   }
-};
-const validateCdate = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入日期'));
-  } else {
-    callback();
-  }
+  callback();
 };
 const validateBalance = (rule, value, callback) => {
-  if (value === '') {
-    callback(new Error('请输入余额'));
-  } else {
-    callback();
+  if (value === '' || value === null || value === undefined) {
+    return callback();
   }
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return callback(new Error('余额需为不小于0的数字'));
+  }
+  callback();
 };
 export default {
   data() {
@@ -128,7 +120,6 @@ export default {
         cage: null,
         caddress: '',
         cphone: '',
-        csymptom: '',
         startDate: '',
         endDate: '',
         cremark: '',
@@ -138,29 +129,50 @@ export default {
         username: [{required: true, message: '请输入用户名', validator: validateUsername, trigger: 'blur'}],
         email: [{message: '请输入邮箱', validator: validateEmail, trigger: 'blur'}],
         cno: [{required: true, message: '请输入顾客编号', validator: validateCno, trigger: 'blur'}],
-        cname: [{required: true, message: '请输入姓名', validator: validateCname, trigger: 'blur'}],
-        cage: [{required: true, message: '请输入年龄', validator: validateCage, trigger: 'blur'}],
+        cname: [{validator: validateCname, trigger: 'blur'}],
+        cage: [{validator: validateCage, trigger: 'blur'}],
         cphone: [{required: true, message: '请输入电话', validator: validateCphone, trigger: 'blur'}],
-        caddress: [{required: true, message: '请输入地址', validator: validateCaddress, trigger: 'blur'}],
-        csymptom: [{message: '请输入症状', validator: validateCsymptom, trigger: 'blur'}],
-        cremark: [{message: '请输入备注', validator: validateCremark, trigger: 'blur'}],
-        cdate: [{required: true, message: '请输入日期', validator: validateCdate, trigger: 'blur'}],
-        balance: [{required: true, message: '请输入余额', validator: validateBalance, trigger: 'blur'}],
+        caddress: [{validator: validateCaddress, trigger: 'blur'}],
+        cremark: [{validator: validateCremark, trigger: 'blur'}],
+        balance: [{validator: validateBalance, trigger: 'blur'}],
       },
     }
   },
   computed: {
     isEditInvalid() {
       return !this.changeUser.username ||
-          !this.changeUser.cname || !this.changeUser.csex ||
-          !this.changeUser.cage || !this.changeUser.cphone || !this.changeUser.authority ||
-          !this.changeUser.caddress || !this.changeUser.cdate ||
-          (this.changeUser.balance === undefined || this.changeUser.balance === null);
+          !this.changeUser.cno || !this.changeUser.csex ||
+          !this.changeUser.cphone || !this.changeUser.authority;
     }
   },
   methods: {
     clearSelection() {
       this.$refs.userTable.clearSelection();
+    },
+    extractPhoneDigits(value) {
+      return String(value || '').replace(/\D/g, '').slice(-11);
+    },
+    normalizePhoneInput() {
+      this.changeUser.cphone = this.extractPhoneDigits(this.changeUser.cphone);
+    },
+    normalizeUserPayload(payload) {
+      const digits = this.extractPhoneDigits(payload.cphone);
+      payload.cphone = digits.length === 11 ? `+86${digits}` : payload.cphone;
+      if (payload.balance === '' || payload.balance === null || payload.balance === undefined) {
+        payload.balance = 0;
+      }
+      if (payload.cage === '') {
+        payload.cage = null;
+      }
+      if (payload.cname === '') {
+        payload.cname = null;
+      }
+      if (payload.caddress === '') {
+        payload.caddress = null;
+      }
+      if (payload.cremark === '') {
+        payload.cremark = null;
+      }
     },
     confirmClickHandler() {
       if (this.dialogTitle === '编辑') {
@@ -186,6 +198,7 @@ export default {
     },
     openAdd() {
       this.dialogTitle = '添加用户';
+      this.changeUser = {balance: ''};
       this.dialogUpdateAddUsersVisible = true;
     },
     onDialogOpen() {
@@ -208,27 +221,31 @@ export default {
         username: [{required: true, message: '请输入用户名', validator: validateUsername, trigger: 'blur'}],
         email: [{message: '请输入邮箱', validator: validateEmail, trigger: 'blur'}],
         cno: [{required: true, message: '请输入顾客编号', validator: validateCno, trigger: 'blur'}],
-        cname: [{required: true, message: '请输入姓名', validator: validateCname, trigger: 'blur'}],
-        cage: [{required: true, message: '请输入年龄', validator: validateCage, trigger: 'blur'}],
+        cname: [{validator: validateCname, trigger: 'blur'}],
+        cage: [{validator: validateCage, trigger: 'blur'}],
         cphone: [{required: true, message: '请输入电话', validator: validateCphone, trigger: 'blur'}],
-        caddress: [{required: true, message: '请输入地址', validator: validateCaddress, trigger: 'blur'}],
-        csymptom: [{message: '请输入症状', validator: validateCsymptom, trigger: 'blur'}],
-        cremark: [{message: '请输入备注', validator: validateCremark, trigger: 'blur'}],
-        cdate: [{required: true, message: '请输入日期', validator: validateCdate, trigger: 'blur'}],
-        balance: [{required: true, message: '请输入余额', validator: validateBalance, trigger: 'blur'}],
+        caddress: [{validator: validateCaddress, trigger: 'blur'}],
+        cremark: [{validator: validateCremark, trigger: 'blur'}],
+        balance: [{validator: validateBalance, trigger: 'blur'}],
       };
       this.dialogUpdateAddUsersVisible = false;
     },
     searchUser() {
       apiRear.get(`/userInfo/${this.uid}`).then(edit => {
-        this.changeUser = edit.data.data;
+        this.changeUser = edit.data.data || {};
+        this.changeUser.cphone = this.extractPhoneDigits(this.changeUser.cphone);
+        if (this.changeUser.balance === null || this.changeUser.balance === undefined || this.changeUser.balance === '') {
+          this.changeUser.balance = 0;
+        }
       }).catch(err => {
         console.log(err);
       });
     },
     async updateUsers() {
       try {
-        apiRear.post(`/userInfo/update`, this.changeUser)
+        const payload = {...this.changeUser};
+        this.normalizeUserPayload(payload);
+        apiRear.post(`/userInfo/update`, payload)
             .then(() => {
               this.fetchData();
               this.$message({
@@ -251,7 +268,9 @@ export default {
       }
     },
     async insertUsers() {
-      apiRear.post(`/userInfo/insert`, this.changeUser)
+      const payload = {...this.changeUser};
+      this.normalizeUserPayload(payload);
+      apiRear.post(`/userInfo/insert`, payload)
           .then(() => {
             this.fetchData();
             this.$message({
@@ -317,7 +336,6 @@ export default {
         cage: null,
         caddress: '',
         cphone: '',
-        csymptom: '',
         startDate: '',
         endDate: '',
         cremark: ''
@@ -486,11 +504,6 @@ export default {
                           placeholder="请输入内容,可为空"
                           clearable></el-input>
               </el-form-item>
-              <el-form-item label="症状" :label-width="searchLabelWidth" class="strong">
-                <el-input v-model="search.csymptom" autocomplete="off" suffix-icon="el-icon-chat-dot-square"
-                          placeholder="请输入内容,可为空"
-                          clearable></el-input>
-              </el-form-item>
               <el-form-item label="日期范围" :label-width="searchLabelWidth" class="strong">
                 <el-date-picker
                     v-model="date"
@@ -546,13 +559,9 @@ export default {
               </el-form-item>
               <el-form-item label="电话" prop="cphone" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="changeUser.cphone" autocomplete="off" suffix-icon="el-icon-mobile-phone"
-                          placeholder="请输入内容"
-                ></el-input>
-              </el-form-item>
-              <el-form-item label="占位格" :label-width="searchLabelWidth" class="strong">
-                <el-input autocomplete="off" suffix-icon="el-icon-circle-close"
-                          placeholder="只是因为这空着不好看..."
-                          :disabled="true"></el-input>
+                          maxlength="11" placeholder="请输入11位手机号" @input="normalizePhoneInput">
+                  <template slot="prepend">+86</template>
+                </el-input>
               </el-form-item>
             </el-form>
           </div>
@@ -576,18 +585,8 @@ export default {
                           placeholder="请输入内容"
                 ></el-input>
               </el-form-item>
-              <el-form-item label="症状" prop="csymptom" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="changeUser.csymptom" autocomplete="off" suffix-icon="el-icon-chat-dot-square"
-                          placeholder="请输入内容"
-                ></el-input>
-              </el-form-item>
               <el-form-item label="备注" prop="cremark" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="changeUser.cremark" autocomplete="off" suffix-icon="el-icon-notebook-1"
-                          placeholder="请输入内容"
-                ></el-input>
-              </el-form-item>
-              <el-form-item label="日期" prop="cdate" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="changeUser.cdate" autocomplete="off" suffix-icon="el-icon-date"
                           placeholder="请输入内容"
                 ></el-input>
               </el-form-item>
@@ -595,6 +594,11 @@ export default {
                 <el-input v-model="changeUser.balance" autocomplete="off" suffix-icon="el-icon-money"
                           placeholder="请输入内容" type="number"
                 ></el-input>
+              </el-form-item>
+              <el-form-item label="占位格" :label-width="searchLabelWidth" class="strong">
+                <el-input autocomplete="off" suffix-icon="el-icon-circle-close"
+                          placeholder="只是因为这空着不好看..."
+                          :disabled="true"></el-input>
               </el-form-item>
             </el-form>
           </div>
@@ -625,10 +629,8 @@ export default {
               <p class="strong">4.
                 <span class="strong" :style="{color: dangerColor}"> 📧用户名唯一，⚠️不可重复</span>
                 。若添加或修改用户失败，请检查用户名是否已存在🔍。</p>
-              <p class="strong">5. 📞电话可为字符串，如：+86-123-456-789📲。</p>
+              <p class="strong">5. 📞电话默认+86，仅支持11位手机号。</p>
               <p class="strong">6. 📍地址需详细填写，如：广东省肇庆市端州区肇庆学院🏢。可以使用英文🌐。</p>
-              <p class="strong">7. 📅
-                日期不建议修改！这是用户注册时间⏲️。若必须修改，请按照yyyy-MM-dd格式，如：2021-01-01🗓️。</p>
               <p class="strong">8. 🔖除顾客编号，用户名，性别，权限必需以外，可填null💼，邮箱按CNO-NULL格式填写📧。</p>
               <p class="strong">9.
                 <span class="strong" :style="{color: dangerColor}">🛠️管理员也属于顾客范畴👥</span>
@@ -638,33 +640,32 @@ export default {
         </div>
       </el-dialog>
 
-      <el-table ref="userTable" :data="tableData" stripe style="width: 100%" :height="tableHeight"
+      <el-table ref="userTable" :data="tableData" stripe style="width: 100%" :height="tableHeight" class="modern-table"
                 v-loading="loading" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="uid" label="用户编号" width="100" fixed="left"></el-table-column>
-        <el-table-column prop="cno" label="顾客编号" width="100" fixed="left"></el-table-column>
-        <el-table-column prop="username" label="用户名" width="100"></el-table-column>
+        <el-table-column prop="uid" label="用户编号" width="120" fixed="left"></el-table-column>
+        <el-table-column prop="cno" label="顾客编号" width="90" fixed="left"></el-table-column>
+        <el-table-column prop="username" label="用户名" min-width="120"></el-table-column>
         <el-table-column prop="authority" label="权限" width="100">
           <template slot-scope="scope">
             <el-tag v-if="scope.row.authority === 1" type="danger" effect="dark">管理员</el-tag>
             <el-tag v-else effect="dark">顾客</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" width="200"></el-table-column>
-        <el-table-column prop="cname" label="姓名" width="100"></el-table-column>
-        <el-table-column prop="csex" label="性别" width="100">
+        <el-table-column prop="email" label="邮箱" min-width="200"></el-table-column>
+        <el-table-column prop="cname" label="姓名" min-width="100"></el-table-column>
+        <el-table-column prop="csex" label="性别" width="90">
           <template slot-scope="scope">
             {{ getGenderText(scope.row.csex) }}
           </template>
         </el-table-column>
-        <el-table-column prop="cage" label="年龄" width="100"></el-table-column>
-        <el-table-column prop="caddress" label="地址" width="220"></el-table-column>
+        <el-table-column prop="cage" label="年龄" width="90"></el-table-column>
+        <el-table-column prop="caddress" label="地址" min-width="220"></el-table-column>
         <el-table-column prop="cphone" label="电话" width="130"></el-table-column>
-        <el-table-column prop="csymptom" label="症状" width="130"></el-table-column>
-        <el-table-column prop="cdate" label="创建日期" width="260"></el-table-column>
-        <el-table-column prop="cremark" label="备注" width="200"></el-table-column>
+        <el-table-column prop="cdate" label="创建日期" min-width="200"></el-table-column>
+        <el-table-column prop="cremark" label="备注" min-width="180"></el-table-column>
         <el-table-column prop="balance" label="余额" width="100"></el-table-column>
-        <el-table-column fixed="right" label="操作" width="120">
+        <el-table-column label="操作" width="120" fixed="right">
           <template slot-scope="scope">
             <el-button
                 @click="openEdit(scope.row.uid)"
@@ -783,25 +784,31 @@ export default {
   padding-top: 16px;
 }
 
-.panel-theme ::v-deep .el-table {
-  border-radius: 14px;
+.panel-theme ::v-deep .modern-table {
+  border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
+  border: 1px solid rgba(31, 122, 109, 0.18);
+  box-shadow: 0 12px 28px rgba(31, 56, 94, 0.12);
 }
 
-.panel-theme ::v-deep .el-table th {
-  background: rgba(31, 122, 109, 0.08);
+.panel-theme ::v-deep .modern-table .el-table__header th {
+  background: linear-gradient(120deg, rgba(31, 122, 109, 0.18), rgba(199, 90, 49, 0.12));
   color: var(--ink);
+  font-weight: 600;
 }
 
-.panel-theme ::v-deep .el-table__fixed,
-.panel-theme ::v-deep .el-table__fixed-right {
+.panel-theme ::v-deep .modern-table .el-table__body tr:hover > td {
+  background: rgba(31, 122, 109, 0.08);
+}
+
+.panel-theme ::v-deep .modern-table::before {
+  height: 0;
+}
+
+.panel-theme ::v-deep .modern-table .el-table__fixed,
+.panel-theme ::v-deep .modern-table .el-table__fixed-right {
+  background: #ffffff;
   box-shadow: none;
-  background: rgba(255, 255, 255, 0.96);
-}
-
-.panel-theme ::v-deep .el-table__fixed-right::before,
-.panel-theme ::v-deep .el-table__fixed::before {
-  background-color: transparent;
 }
 </style>

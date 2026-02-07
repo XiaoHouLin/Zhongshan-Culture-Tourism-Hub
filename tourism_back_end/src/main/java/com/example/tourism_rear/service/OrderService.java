@@ -45,4 +45,8 @@ public interface OrderService {
     void deleteOrders(List<Integer> orderIds, Integer uid, boolean isAdmin);
 
     int closeExpiredOrders();
+
+    int getMonthlyProductPurchaseSum(Integer uid, String productCode);
+
+    void createPendingPaymentMessage(Integer uid, Integer orderId);
 }

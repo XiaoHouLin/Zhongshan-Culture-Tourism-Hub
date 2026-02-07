@@ -1,9 +1,11 @@
 <script>
 import {apiRear} from "@/axios";
 import {jwtDecode} from "jwt-decode";
+import SliderCaptcha from "@/components/SliderCaptcha.vue";
 
 export default {
   name: 'LoginView',
+  components: { SliderCaptcha },
   data() {
     const validatePass = (rule, value, callback) => {
       if (value === '') {
@@ -28,9 +30,20 @@ export default {
         username: [{validator: validateUsername, trigger: 'blur'}],
         password: [{validator: validatePass, trigger: 'blur'}]
       },
+      captchaToken: '',
+      captchaPassed: false,
+      needCaptcha: false,
+      captchaKey: 0,
+      captchaLoading: false,
       url: '/zqxy.jpg',
       isLoading: false
     };
+  },
+  watch: {
+    'login.username'() {
+      this.needCaptcha = false;
+      this.resetCaptchaState();
+    }
   },
   computed: {
     isLoginInvalid() {
@@ -39,7 +52,7 @@ export default {
   },
   async created() {
     if (sessionStorage.getItem('loginExpired')) {
-      this.$message.warning('登录信息已过期，请重新登录');
+      this.$message.warning('登录信息过期，请重新登录');
       sessionStorage.removeItem('loginExpired');
     }
     await this.isTokenValid();
@@ -47,6 +60,14 @@ export default {
   methods: {
     async submitForm() {
       if (this.isLoginInvalid) {
+        return;
+      }
+      if (this.needCaptcha && !this.captchaToken) {
+        await this.fetchCaptcha();
+        return;
+      }
+      if (this.needCaptcha && !this.captchaPassed) {
+        this.$message.warning('请先完成滑块验证');
         return;
       }
       this.isLoading = true;
@@ -62,11 +83,30 @@ export default {
           },
           error => Promise.reject(error)
         );
-        const response = await apiRear.post('login', this.login);
+        const payload = {
+          ...this.login,
+          captchaToken: this.needCaptcha ? this.captchaToken : '',
+          captchaInput: this.needCaptcha ? 'pass' : ''
+        };
+        const response = await apiRear.post('login', payload);
         if (response.data.code === 0) {
-          this.$message.error('用户名或密码错误');
+          const needCaptcha = response.data && response.data.data && response.data.data.needCaptcha;
+          const message = response.data.message || '用户名或密码错误';
+          this.resetCaptchaState();
+          if (message.includes('人机验证')) {
+            this.needCaptcha = true;
+            await this.fetchCaptcha();
+            return;
+          }
+          if (needCaptcha) {
+            this.needCaptcha = true;
+            await this.fetchCaptcha();
+          }
+          this.$message.error(message);
         } else {
           this.$message.success('登录成功');
+          this.needCaptcha = false;
+          this.resetCaptchaState();
           await this.redirectAfterLogin();
         }
       } catch (error) {
@@ -74,6 +114,38 @@ export default {
       } finally {
         this.isLoading = false;
       }
+    },
+    async fetchCaptcha() {
+      if (!this.login.username) {
+        this.$message.warning('请输入用户名');
+        return;
+      }
+      this.captchaLoading = true;
+      try {
+        const res = await apiRear.post('/login/captcha', { username: this.login.username });
+        if (res.data.code !== 1) {
+          this.$message.error(res.data.message || '暂时无法获取人机验证');
+          return;
+        }
+        const data = res.data.data || {};
+        this.captchaToken = data.token || '';
+        this.captchaPassed = false;
+        this.captchaKey += 1;
+      } catch (error) {
+        this.$message.error('获取人机验证失败，请稍后重试');
+      } finally {
+        this.captchaLoading = false;
+      }
+    },
+    resetCaptchaState() {
+      this.captchaToken = '';
+      this.captchaPassed = false;
+      this.captchaLoading = false;
+      this.captchaKey += 1;
+    },
+    async handleCaptchaSuccess() {
+      this.captchaPassed = true;
+      this.$message.success('验证通过，请点击登录');
     },
     async isTokenValid() {
       const token = sessionStorage.getItem('token');
@@ -137,12 +209,16 @@ export default {
           <el-form-item label="用户名" prop="username" class="strong">
             <el-input type="text" v-model="login.username" autocomplete="off"></el-input>
           </el-form-item>
-          <el-form-item label="密码" prop="password" class="strong">
-            <el-input type="password" v-model="login.password" autocomplete="off" show-password></el-input>
-          </el-form-item>
-          <el-form-item>
-            <el-button
-              type="primary"
+        <el-form-item label="密码" prop="password" class="strong">
+          <el-input type="password" v-model="login.password" autocomplete="off" show-password></el-input>
+        </el-form-item>
+        <div v-if="needCaptcha" class="inline-captcha">
+          <slider-captcha :key="captchaKey" :disabled="captchaLoading" @success="handleCaptchaSuccess" />
+          <p class="captcha-tip">多次登录失败后需要完成滑块验证。</p>
+        </div>
+        <el-form-item>
+          <el-button
+            type="primary"
               @click="submitForm"
               :disabled="isLoginInvalid || isLoading"
               style="width: 100%;"
@@ -287,6 +363,20 @@ export default {
 
 .back-button:hover {
   background: #17675d;
+}
+
+.inline-captcha {
+  margin: 12px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.captcha-tip {
+  margin: 0;
+  color: #5f6b66;
+  font-size: 12px;
+  text-align: center;
 }
 
 @keyframes fadeInUp {

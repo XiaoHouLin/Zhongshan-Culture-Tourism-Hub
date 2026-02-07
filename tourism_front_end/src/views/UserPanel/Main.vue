@@ -88,7 +88,7 @@ export default {
 
 <template>
   <el-container class="panel-layout">
-    <el-aside v-if="!isCustomer" class="panel-aside">
+    <el-aside v-if="!isCustomer" class="panel-aside" width="180px">
       <el-menu
         :default-active="activeIndex"
         class="el-menu-vertical-demo userPanel_container is-active"
@@ -173,7 +173,7 @@ export default {
 }
 
 .panel-aside {
-  width: 220px;
+  width: 180px;
 }
 
 .panel-main {
@@ -250,7 +250,7 @@ export default {
 }
 
 .el-menu-vertical-demo {
-  width: 220px;
+  width: 180px;
 }
 
 .uid-container {

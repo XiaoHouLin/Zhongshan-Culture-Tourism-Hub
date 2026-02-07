@@ -29,6 +29,7 @@
           </div>
           <p class="message-content">{{ message.content }}</p>
           <div class="message-actions">
+            <el-button type="text" @click.stop="viewDetail(message)">查看详情</el-button>
             <el-button type="text" @click.stop="markAsRead(message)">标记已读</el-button>
             <el-button type="text" @click.stop="removeItem(message)">删除</el-button>
           </div>
@@ -123,6 +124,17 @@ export default {
         await this.markAsRead(message);
       }
     },
+    async viewDetail(message) {
+      if (!message) {
+        return;
+      }
+      await this.markAsRead(message);
+      const target = this.resolveMessageRoute(message);
+      if (target) {
+        this.visible = false;
+        this.$router.push(target);
+      }
+    },
     async markAsRead(message) {
       if (!message || message.read) {
         return;
@@ -145,6 +157,22 @@ export default {
       } catch (error) {
         // ignore
       }
+    },
+    resolveMessageRoute(message) {
+      const type = message.messageType || message.type || '';
+      const refId = message.refId || message.refID || message.orderId || '';
+      if (type === 'ORDER_PENDING' && refId) {
+        return {path: '/billPayment', query: {orderId: refId}};
+      }
+      if ((type === 'ORDER_PICKUP' || type === 'ORDER_REFUND') && refId) {
+        sessionStorage.setItem('openOrderDetailId', String(refId));
+        return {path: '/userInfo'};
+      }
+      if (refId) {
+        sessionStorage.setItem('openOrderDetailId', String(refId));
+        return {path: '/userInfo'};
+      }
+      return {path: '/userInfo'};
     },
     formatTime(value) {
       if (!value) {

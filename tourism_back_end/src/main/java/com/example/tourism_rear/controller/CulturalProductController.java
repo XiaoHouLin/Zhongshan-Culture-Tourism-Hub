@@ -65,6 +65,18 @@ public class CulturalProductController {
         return Result.success(productService.getProductByCode(productCode));
     }
 
+    @GetMapping("/next-code")
+    public Result nextProductCode() {
+        log.info("获取下一个文创产品编号");
+        return Result.success(productService.nextProductCode());
+    }
+
+    @GetMapping("/categories")
+    public Result listCategories() {
+        log.info("查询文创产品分类列表");
+        return Result.success(productService.listCategories());
+    }
+
     @GetMapping
     public Result listProducts(@RequestParam(defaultValue = "1") Integer page,
                                @RequestParam(defaultValue = "20") Integer pageSize,

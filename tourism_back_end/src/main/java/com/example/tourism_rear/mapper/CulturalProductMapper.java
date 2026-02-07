@@ -36,6 +36,13 @@ public interface CulturalProductMapper {
     @Select("select count(*) from cultural_product where productCode=#{productCode}")
     int countByProductCode(@Param("productCode") String productCode);
 
+    @Select("select max(cast(substring(productCode, 5) as unsigned)) " +
+            "from cultural_product where productCode like 'ZSCP%'")
+    Integer selectMaxProductCodeSequence();
+
+    @Select("select distinct category from cultural_product where category is not null and category != ''")
+    List<String> listCategories();
+
     @Select("select * from cultural_product where productCode=#{productCode}")
     CulturalProductInfo getProductByCode(@Param("productCode") String productCode);
 

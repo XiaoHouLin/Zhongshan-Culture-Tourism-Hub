@@ -55,6 +55,7 @@ export default {
         minStock: null,
         maxStock: null
       },
+      monthlyPurchaseCache: {},
       classifyButtons: [
         {text: '🏞️全系文创', isClicked: false},
         {text: '🏯城市地标', isClicked: false},
@@ -290,11 +291,13 @@ export default {
     },
     async handlePay(isButtonTriggered = false) {
       if (!this.isLoggedIn) {
-        this.requireLogin('??');
+        this.requireLogin('结算');
         return;
       }
       if (this.shoppingCart.length <= 0) {
-        this.$message.error('??????');
+        if (isButtonTriggered) {
+          this.$message.error('购物车为空，请先添加商品');
+        }
         return;
       }
       if (!this.validateCartBeforeCheckout()) {
@@ -310,7 +313,7 @@ export default {
             shoppingCart: this.shoppingCart,
           });
           if (response.data.code !== 1) {
-            throw new Error(response.data.message || '??????');
+            throw new Error(response.data.message || '创建订单失败');
           }
           this.orderId = response.data.data;
         } else {
@@ -323,7 +326,7 @@ export default {
           });
           if (response.data.code === 0) {
             const message = response.data.message || '';
-            if (message.includes('??') || message.includes('??')) {
+            if (message.includes('已关闭') || message.includes('不存在')) {
               this.orderId = null;
               response = await apiRear.post('/order/add', {
                 uid: this.userInfo.uid,
@@ -331,16 +334,16 @@ export default {
                 shoppingCart: this.shoppingCart,
               });
               if (response.data.code !== 1) {
-                throw new Error(response.data.message || '??????');
+                throw new Error(response.data.message || '创建订单失败');
               }
               this.orderId = response.data.data;
             } else {
-              throw new Error(message || '??????');
+              throw new Error(message || '更新订单失败');
             }
           }
         }
       } catch (error) {
-        this.$message.error(error && error.message ? error.message : '???????');
+        this.$message.error(error && error.message ? error.message : '提交订单失败，请稍后重试');
         this.loading = false;
         return;
       }
@@ -349,9 +352,9 @@ export default {
         return;
       }
       if (this.userInfo.balance < this.cartTotal) {
-        this.$confirm('??????????????????', '????', {
-          confirmButtonText: '????',
-          cancelButtonText: '????',
+        this.$confirm('当前余额不足，是否前往结算页继续支付？', '余额不足', {
+          confirmButtonText: '去支付',
+          cancelButtonText: '取消',
           type: 'warning'
         }).then(() => {
           localStorage.removeItem('shoppingCart');
@@ -360,7 +363,7 @@ export default {
         }).catch(() => {
           this.$message({
             type: 'info',
-            message: '?????'
+            message: '已取消支付'
           });
           this.loading = false;
         })
@@ -479,7 +482,7 @@ export default {
       this.selectedProductIsOffline = this.isOfflineProduct(this.tableData[index]);
       this.productIndex = index;
     },
-    purchaseHandle() {
+    async purchaseHandle() {
       if (!this.isLoggedIn) {
         this.requireLogin('下单');
         return;
@@ -491,7 +494,15 @@ export default {
       if (!this.isValidQuantity(this.purchaseQuantity, this.maxAvailableStock)) {
         return;
       }
-      const purchasedProducts = this.shoppingCart.find(item => item.productCode === this.tableData[this.productIndex].productCode);
+      const productCode = this.tableData[this.productIndex].productCode;
+      const purchasedProducts = this.shoppingCart.find(item => item.productCode === productCode);
+      const currentInCart = purchasedProducts ? purchasedProducts.purchaseNum : 0;
+      const desiredTotal = currentInCart + this.purchaseQuantity;
+      const withinLimit = await this.checkMonthlyLimit(productCode, desiredTotal);
+      if (!withinLimit) {
+        return;
+      }
+      // 通过限购检查后再写入购物车
       if (purchasedProducts != null) {
         if (this.tableData[this.productIndex].stock - purchasedProducts.purchaseNum - this.purchaseQuantity < 0) {
           this.$message.error('购买数量不能大于剩余数量');
@@ -527,6 +538,31 @@ export default {
         return parseFloat((total + item.purchaseNum * item.price).toFixed(2));
       }, 0);
     },
+    async checkMonthlyLimit(productCode, desiredQuantity) {
+      if (!productCode) {
+        return true;
+      }
+      try {
+        const purchased = await this.getMonthlyPurchasedCount(productCode);
+        if (purchased + desiredQuantity > 5) {
+          this.$message.warning('每人每月每件商品限购5件');
+          return false;
+        }
+      } catch (error) {
+        this.$message.error('无法校验限购规则，请稍后重试');
+        return false;
+      }
+      return true;
+    },
+    async getMonthlyPurchasedCount(productCode) {
+      if (this.monthlyPurchaseCache[productCode] !== undefined) {
+        return this.monthlyPurchaseCache[productCode];
+      }
+      const res = await apiRear.get('/order/monthly-purchase', {params: {productCode}});
+      const count = Number(res.data.data) || 0;
+      this.$set(this.monthlyPurchaseCache, productCode, count);
+      return count;
+    },
     updateCartQuantity(item, value) {
       if (!this.isLoggedIn) {
         this.requireLogin('管理购物车');
@@ -541,9 +577,14 @@ export default {
       if (!target) {
         return;
       }
-      target.purchaseNum = quantity;
-      this.updateCartTotal();
-      localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+      this.checkMonthlyLimit(item.productCode, quantity).then(valid => {
+        if (!valid) {
+          return;
+        }
+        target.purchaseNum = quantity;
+        this.updateCartTotal();
+        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+      });
     },
     getCartStock(productCode) {
       const product = this.tableDataWithImages.find(item => item.productCode === productCode);
@@ -590,12 +631,17 @@ export default {
         if (!this.isValidQuantity(quantity, stock)) {
           return;
         }
-        purchasedDrug.purchaseNum = quantity;
-        this.updateCartTotal();
-        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
-        this.$message({
-          type: 'success',
-          message: '『' + productName + '』' + '数量已修改为：' + quantity
+        this.checkMonthlyLimit(productCode, quantity).then(valid => {
+          if (!valid) {
+            return;
+          }
+          purchasedDrug.purchaseNum = quantity;
+          this.updateCartTotal();
+          localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+          this.$message({
+            type: 'success',
+            message: '『' + productName + '』' + '数量已修改为：' + quantity
+          });
         });
       }).catch(() => {
         this.$message({
@@ -717,9 +763,6 @@ export default {
             </button>
           </div>
           <p class="travel-emoji-tip">选择一个最贴合你的旅行动线</p>
-          <p class="strong symptom-text" style="font-size: 13px;margin: 10px;text-align: center;">
-            {{ userInfo.csymptom ? userInfo.csymptom : "暂无数据" }}
-          </p>
         </el-card>
         <el-card v-else shadow="hover" class="border shop-top-card">
           <p class="strong" style="font-size: 130%;margin: 10px">👋游客模式</p>
@@ -1340,18 +1383,21 @@ export default {
   position: fixed;
   bottom: 0;
   left: 0;
-  width: 100%;
+  right: 0;
+  width: auto;
   background: rgba(255, 255, 255, 0.92);
   justify-content: space-between;
   padding: 12px 24px;
   box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
   backdrop-filter: blur(6px);
   align-items: center;
+  box-sizing: border-box;
 }
 
 .shop-layout.with-aside .footer-bar {
-  left: 220px;
-  width: calc(100% - 220px);
+  left: 180px;
+  right: 0;
+  width: auto;
 }
 
 .footer-cart {
@@ -1388,6 +1434,8 @@ export default {
 
 .checkout-btn {
   min-width: 140px;
+  max-width: 45vw;
+  white-space: nowrap;
 }
 
 .clear-cart-btn {

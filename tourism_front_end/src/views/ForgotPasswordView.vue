@@ -1,8 +1,10 @@
 <script>
 import {apiRear} from "@/axios";
+import SliderCaptcha from "@/components/SliderCaptcha.vue";
 
 export default {
   name: 'ForgotPasswordView',
+  components: { SliderCaptcha },
   data() {
     return {
       step: 'identify',
@@ -27,11 +29,9 @@ export default {
       codeCountdown: 0,
       codeTimer: null,
       verifyLoading: false,
-      captchaDialogVisible: false,
-      captchaQuestion: '',
-      captchaAnswer: 0,
-      captchaInput: '',
-      captchaError: '',
+      captchaRequired: false,
+      captchaPassed: false,
+      captchaKey: 0,
       emailDialogVisible: false,
       url: '/zqxy.jpg'
     };
@@ -173,7 +173,13 @@ export default {
       if (this.codeCountdown > 0 || this.codeSending) {
         return;
       }
-      this.openCaptchaDialog();
+      if (!this.captchaRequired || !this.captchaPassed) {
+        this.captchaRequired = true;
+        this.captchaPassed = false;
+        this.captchaKey += 1;
+        return;
+      }
+      this.sendResetCode();
     },
     async sendResetCode() {
       this.codeSending = true;
@@ -202,6 +208,9 @@ export default {
         this.$message.error('验证码发送失败，请稍后再试');
       } finally {
         this.codeSending = false;
+        this.captchaRequired = false;
+        this.captchaPassed = false;
+        this.captchaKey += 1;
       }
     },
     async verifyCode() {
@@ -258,26 +267,9 @@ export default {
         this.isLoading = false;
       }
     },
-    openCaptchaDialog() {
-      this.captchaInput = '';
-      this.captchaError = '';
-      this.generateCaptcha();
-      this.captchaDialogVisible = true;
-    },
-    generateCaptcha() {
-      const left = Math.floor(Math.random() * 9) + 1;
-      const right = Math.floor(Math.random() * 9) + 1;
-      this.captchaQuestion = `${left} + ${right} = ?`;
-      this.captchaAnswer = left + right;
-    },
-    confirmCaptcha() {
-      if (Number(this.captchaInput) !== this.captchaAnswer) {
-        this.captchaError = '验证失败，请重试';
-        this.generateCaptcha();
-        return;
-      }
-      this.captchaDialogVisible = false;
-      this.sendResetCode();
+    handleCaptchaSuccess() {
+      this.captchaPassed = true;
+      this.$message.success('验证通过，请点击发送验证码');
     },
     startCodeCountdown() {
       this.codeCountdown = 60;
@@ -352,6 +344,10 @@ export default {
               <el-input v-model="resetForm.code" placeholder="请输入6位验证码" maxlength="6"
                         @input="handleCodeInput"></el-input>
             </el-form-item>
+            <div v-if="captchaRequired" class="inline-captcha">
+              <slider-captcha :key="captchaKey" @success="handleCaptchaSuccess" />
+              <p class="captcha-tip">拖动滑块完成验证后将发送验证码。</p>
+            </div>
             <div class="verify-actions">
               <el-button class="strong"
                          :disabled="codeCountdown > 0 || codeSending"
@@ -409,23 +405,6 @@ export default {
       </div>
     </el-dialog>
 
-    <el-dialog
-      title="人机验证"
-      :visible.sync="captchaDialogVisible"
-      width="380px"
-      :close-on-click-modal="false"
-      class="captcha-dialog"
-    >
-      <div class="captcha-body">
-        <div class="captcha-question">{{ captchaQuestion }}</div>
-        <el-input v-model="captchaInput" placeholder="请输入结果" @input="captchaError = ''"></el-input>
-        <p v-if="captchaError" class="captcha-error">{{ captchaError }}</p>
-      </div>
-      <div slot="footer" class="dialog-footer">
-        <el-button @click="captchaDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="confirmCaptcha">验证并发送</el-button>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
@@ -577,31 +556,24 @@ export default {
   background: #17675d;
 }
 
-.captcha-dialog .el-dialog__header {
-  border-bottom: 1px solid #eef2f0;
-}
-
 .captcha-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.captcha-question {
-  font-size: 18px;
-  font-weight: 700;
-  color: #1f2b2a;
-  background: #f0f6f4;
-  padding: 12px;
-  border-radius: 12px;
-  text-align: center;
-  letter-spacing: 1px;
+.inline-captcha {
+  margin: 10px 0 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.captcha-error {
-  color: #e83a3a;
+.captcha-tip {
+  color: #5f6b66;
   margin: 0;
   font-size: 12px;
+  text-align: center;
 }
 
 @keyframes fadeInUp {

@@ -16,63 +16,77 @@ import org.springframework.web.servlet.ModelAndView;
 @Component
 public class LoginCheckInterceptor implements HandlerInterceptor {
 
-    @Override//目标资源方法运行前运行
+    private static final String EXPIRED_LOGIN_MESSAGE = "登录信息过期，请重新登录";
+
+    @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        // 处理 OPTIONS 请求
         if (HttpMethod.OPTIONS.matches(request.getMethod())) {
             response.setStatus(HttpServletResponse.SC_OK);
             return true;
         }
-        //获取请求url
+
         String url = request.getRequestURI();
         log.info("请求的url：{}", url);
+
         if (url.contains("login")
                 || url.contains("register")
                 || url.contains("indexView")
                 || url.contains("isUnique")
-                || url.contains("password-reset")) {
-            //放行
+                || url.contains("password-reset")
+                || url.startsWith("/chat")) {
             return true;
         }
+
         if (HttpMethod.GET.matches(request.getMethod()) && url.startsWith("/cultural-products")) {
             return true;
         }
-        String jwt = request.getHeader("authorization");
-        if (jwt != null && jwt.contains("Bearer ")) {
-            jwt = jwt.substring(7);
-        }
-        if (!StringUtils.hasLength(jwt)) {
-            log.info("请求头token为空");
-            Result error = Result.error("Not Login");
-            String notLogin = JSONObject.toJSONString(error);
-            response.getWriter().write(notLogin);
-            response.setStatus(401);
+
+        String jwt = resolveToken(request);
+        if (!StringUtils.hasText(jwt)) {
+            writeUnauthorizedResponse(response);
             return false;
         }
+
         try {
-            //校验jwt
             Jwt.checkToken(jwt);
         } catch (Exception e) {
-            e.printStackTrace();
-            log.info("解析令牌失败");
-            Result error = Result.error("尚未登录，请登录");
-            String notLogin = JSONObject.toJSONString(error);
-            response.getWriter().write(notLogin);
-            //校验失败，返回401状态码
-            response.setStatus(401);
+            log.warn("token解析失败: {}", e.getMessage());
+            writeUnauthorizedResponse(response);
             return false;
         }
-        log.info("令牌合法，放行");
+
         return true;
     }
 
-    @Override//目标资源方法运行后运行
-    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) throws Exception {
-        System.out.println("postHandle...");
+    private String resolveToken(HttpServletRequest request) {
+        String jwt = request.getHeader("Authorization");
+        if (!StringUtils.hasText(jwt)) {
+            jwt = request.getHeader("authorization");
+        }
+        if (StringUtils.hasText(jwt) && jwt.startsWith("Bearer ")) {
+            jwt = jwt.substring(7);
+        }
+        if (!StringUtils.hasText(jwt)) {
+            jwt = request.getHeader("token");
+        }
+        return jwt;
     }
 
-    @Override//请求处理完成后运行
-    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) throws Exception {
-        System.out.println("afterCompletion...");
+    private void writeUnauthorizedResponse(HttpServletResponse response) throws Exception {
+        Result error = Result.error(EXPIRED_LOGIN_MESSAGE);
+        response.setCharacterEncoding("UTF-8");
+        response.setContentType("application/json;charset=UTF-8");
+        response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+        response.getWriter().write(JSONObject.toJSONString(error));
+    }
+
+    @Override
+    public void postHandle(HttpServletRequest request, HttpServletResponse response, Object handler, ModelAndView modelAndView) {
+        // no-op
+    }
+
+    @Override
+    public void afterCompletion(HttpServletRequest request, HttpServletResponse response, Object handler, Exception ex) {
+        // no-op
     }
 }

@@ -41,6 +41,8 @@ export default {
       countdownTimer: null,
       orderClosed: false,
       showCountdown: true,
+      paymentSucceeded: false,
+      pendingNoticeSent: false,
       amapKey:
         (typeof window !== 'undefined' && window.AMAP_KEY) ||
         process.env.VUE_APP_AMAP_KEY ||
@@ -188,6 +190,7 @@ export default {
           clearInterval(this.countdownTimer);
           this.countdownTimer = null;
         }
+        this.paymentSucceeded = true;
         this.$message.success(`支付成功，取件码：${pickupInfo.pickupCode || '已生成'}`);
         await this.$router.push('/CompleteBill');
       } catch (err) {
@@ -390,6 +393,20 @@ export default {
         // ignore
       }
     },
+    async notifyPendingIfNeeded() {
+      if (this.paymentSucceeded || this.orderClosed || this.pendingNoticeSent) {
+        return;
+      }
+      if (!this.currentOrderId) {
+        return;
+      }
+      try {
+        await apiRear.post('/order/pending-message', {orderId: this.currentOrderId});
+        this.pendingNoticeSent = true;
+      } catch (error) {
+        // ignore
+      }
+    },
     formatMoney(value) {
       if (value === undefined || value === null || value === '') {
         return '0.00';
@@ -399,6 +416,13 @@ export default {
         return '0.00';
       }
       return num.toFixed(2);
+    }
+  },
+  async beforeRouteLeave(to, from, next) {
+    try {
+      await this.notifyPendingIfNeeded();
+    } finally {
+      next();
     }
   },
   beforeDestroy() {

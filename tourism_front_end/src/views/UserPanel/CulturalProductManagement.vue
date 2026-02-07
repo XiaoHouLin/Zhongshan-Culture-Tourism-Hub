@@ -3,7 +3,7 @@ import {apiRear} from "@/axios";
 
 const validateProductCode = (rule, value, callback) => {
   if (value === '') {
-    callback(new Error('请输入文创产品编号'));
+    callback(new Error('文创产品编号未生成，请稍后重试'));
   } else {
     callback();
   }
@@ -17,14 +17,14 @@ const validateProductName = (rule, value, callback) => {
 };
 const validateCategory = (rule, value, callback) => {
   if (value === '') {
-    callback(new Error('请输入文创产品分类'));
+    callback(new Error('请选择文创产品分类'));
   } else {
     callback();
   }
 };
 const validateDisplayMode = (rule, value, callback) => {
   if (value === '') {
-    callback(new Error('请输入展示形式'));
+    callback(new Error('请选择展示形式'));
   } else {
     callback();
   }
@@ -40,21 +40,24 @@ const validatePrice = (rule, value, callback) => {
   if (value === '') {
     return callback(new Error('请输入文创产品价格'));
   }
-      // else if (isNaN(value) || value <= 0) {
-  //   callback(new Error('价格必须为正数'));
-  else {
-    callback();
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return callback(new Error('价格需为不小于0的数字'));
   }
+  if (numeric > 99999) {
+    return callback(new Error('价格上限为99999'));
+  }
+  callback();
 };
 const validateStock = (rule, value, callback) => {
   if (value === '') {
     return callback(new Error('请输入文创产品数量'));
   }
-      // else if (!Number.isInteger(value)) {
-  //   callback(new Error('库存必须为整数'));
-  else {
-    callback();
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric < 0) {
+    return callback(new Error('库存需为不小于0的数字'));
   }
+  callback();
 };
 
 export default {
@@ -66,8 +69,8 @@ export default {
       selectedCodes: [],
       value: '',
       dialogTitle: '',
-      priceRange: [0, 1000],
-      stockRange: [0, 50000],
+      priceRange: [0, 99999],
+      stockRange: [0, 999999],
       dialogFormVisible: false,
       productDialogVisible: false,
       searchLabelWidth: '120px',
@@ -76,6 +79,15 @@ export default {
       defaultTagColor: '#6d1677',
       dangerColor: '#e83a3a',
       editingProduct: {},
+      categoryOptions: [],
+      selectedCategories: [],
+      highlightDialogVisible: false,
+      highlightDraft: '',
+      newCategoryName: '',
+      displayModeOptions: [
+        {label: '线上发售', value: '线上'},
+        {label: '线下限定', value: '线下'}
+      ],
       options: [{
         value: '20',
         label: '20'
@@ -106,7 +118,7 @@ export default {
         maxStock: null
       },
       rules: {
-        productCode: [{required: true, message: '请输入文创产品编号', validator: validateProductCode, trigger: 'blur'}],
+        productCode: [{required: true, message: '文创产品编号未生成，请稍后重试', validator: validateProductCode, trigger: 'blur'}],
         productName: [{required: true, message: '请输入文创产品名', validator: validateProductName, trigger: 'blur'}],
         category: [{required: true, message: '请输入文创产品分类', validator: validateCategory, trigger: 'blur'}],
         displayMode: [{required: true, message: '请输入展示形式', validator: validateDisplayMode, trigger: 'blur'}],
@@ -116,10 +128,22 @@ export default {
       },
     }
   },
+  watch: {
+    selectedCategories() {
+      this.syncCategoryField();
+      this.$nextTick(() => {
+        if (this.$refs.drugRef) {
+          this.$refs.drugRef.validateField('category');
+        }
+      });
+    }
+  },
   computed: {
     isEditInvalid() {
+      const hasPrice = this.editingProduct.price !== null && this.editingProduct.price !== undefined && this.editingProduct.price !== '';
+      const hasStock = this.editingProduct.stock !== null && this.editingProduct.stock !== undefined && this.editingProduct.stock !== '';
       return !this.editingProduct.productCode || !this.editingProduct.productName || !this.editingProduct.category ||
-          !this.editingProduct.displayMode || !this.editingProduct.highlight || !this.editingProduct.price || !this.editingProduct.stock;
+          !this.editingProduct.displayMode || !this.editingProduct.highlight || !hasPrice || !hasStock;
     }
   },
   methods: {
@@ -150,9 +174,11 @@ export default {
     },
     openAdd() {
       this.dialogTitle = '添加文创产品';
-      this.editingProduct = {};
+      this.editingProduct = {displayMode: '线上'};
+      this.selectedCategories = [];
       this.selectedCodes = [];
       this.productDialogVisible = true;
+      this.fetchNextProductCode();
     },
     onDialogOpen() {
       // 对话框打开时添加键盘事件监听器
@@ -171,7 +197,7 @@ export default {
     cancelEditOrAdd() {
       this.selectedCodes = [];
       this.rules = {
-        productCode: [{required: true, message: '请输入文创产品编号', validator: validateProductCode, trigger: 'blur'}],
+        productCode: [{required: true, message: '文创产品编号未生成，请稍后重试', validator: validateProductCode, trigger: 'blur'}],
         productName: [{required: true, message: '请输入文创产品名', validator: validateProductName, trigger: 'blur'}],
         category: [{required: true, message: '请输入文创产品分类', validator: validateCategory, trigger: 'blur'}],
         displayMode: [{required: true, message: '请输入展示形式', validator: validateDisplayMode, trigger: 'blur'}],
@@ -180,6 +206,7 @@ export default {
         stock: [{required: true, message: '请输入文创产品数量', validator: validateStock, trigger: 'blur'}]
       };
       this.editingProduct = {};
+      this.selectedCategories = [];
       this.productDialogVisible = false;
     },
     loadProductForEdit() {
@@ -189,14 +216,90 @@ export default {
       }
       apiRear.get(`/cultural-products/${code}`).then(edit => {
         this.editingProduct = edit.data.data;
+        this.syncSelectedCategories();
       }).catch(err => {
         console.log(err);
       });
+    },
+    async fetchNextProductCode() {
+      try {
+        const res = await apiRear.get('/cultural-products/next-code');
+        if (res && res.data && res.data.data) {
+          this.$set(this.editingProduct, 'productCode', res.data.data);
+        }
+      } catch (err) {
+        console.log(err);
+        this.$message.error('获取文创产品编号失败，请稍后重试');
+      }
+    },
+    async loadCategoryOptions() {
+      try {
+        const res = await apiRear.get('/cultural-products/categories');
+        const list = (res && res.data && Array.isArray(res.data.data)) ? res.data.data : [];
+        this.mergeCategoryOptions(list);
+      } catch (err) {
+        console.log(err);
+      }
+    },
+    mergeCategoryOptions(list) {
+      const normalized = (list || [])
+          .map(item => (item || '').trim())
+          .filter(Boolean);
+      const set = new Set(this.categoryOptions);
+      normalized.forEach(item => {
+        item.split(/[,，、]/).forEach(part => {
+          const name = part.trim();
+          if (name) {
+            set.add(name);
+          }
+        });
+      });
+      this.categoryOptions = Array.from(set);
+    },
+    syncSelectedCategories() {
+      const raw = this.editingProduct.category || '';
+      const parts = raw.split(/[,，、]/).map(item => item.trim()).filter(Boolean);
+      this.selectedCategories = parts;
+      this.mergeCategoryOptions(parts);
+    },
+    syncCategoryField() {
+      const categories = (this.selectedCategories || [])
+          .map(item => item.trim())
+          .filter(Boolean);
+      this.editingProduct.category = categories.join('、');
+    },
+    addCategoryOption() {
+      this.$prompt('请输入新分类名称', '新建分类', {
+        confirmButtonText: '保存',
+        cancelButtonText: '取消',
+        inputPattern: /^.{1,20}$/,
+        inputErrorMessage: '分类名称不能为空且不超过20字'
+      }).then(({ value }) => {
+        const name = (value || '').trim();
+        if (!name) {
+          return;
+        }
+        if (!this.categoryOptions.includes(name)) {
+          this.categoryOptions.push(name);
+        }
+        if (!this.selectedCategories.includes(name)) {
+          this.selectedCategories.push(name);
+        }
+      }).catch(() => {});
+    },
+    openHighlightDialog() {
+      this.highlightDraft = this.editingProduct.highlight || '';
+      this.highlightDialogVisible = true;
+    },
+    confirmHighlight() {
+      this.editingProduct.highlight = (this.highlightDraft || '').trim();
+      this.highlightDialogVisible = false;
     },
     // TODO : 先查询文创品编号是否重复，再更新信息
     async updateProduct() {
       try {
         console.log("update");
+        this.syncCategoryField();
         const originalCode = this.selectedCodes[0];
         const response = await apiRear.post(`/cultural-products/validate/${this.editingProduct.productCode}&${originalCode}`);
         if (response.data.code === 0) {
@@ -233,32 +336,28 @@ export default {
     async createProduct() {
       try {
         console.log("insert");
-        const response = await apiRear.post(`/cultural-products/validate/${this.editingProduct.productCode}`);
-        if (response.data.code === 0) {
+        this.syncCategoryField();
+        if (!this.editingProduct.productCode) {
+          await this.fetchNextProductCode();
+        }
+        apiRear.post(`/cultural-products`, this.editingProduct)
+            .then(() => {
+              this.fetchData();
+              this.$message({
+                type: 'success',
+                message: '添加文创产品成功!'
+              });
+              this.productDialogVisible = false;
+              this.editingProduct = {};
+              this.selectedCodes = [];
+              this.loading = true;
+            }).catch(err => {
+          console.log(err);
           this.$message({
             type: 'error',
-            message: '文创产品编号与其他文创产品编号重复，请重新输入！'
-          })
-        } else {
-          apiRear.post(`/cultural-products`, this.editingProduct)
-              .then(() => {
-                this.fetchData();
-                this.$message({
-                  type: 'success',
-                  message: '添加文创产品成功!'
-                });
-                this.productDialogVisible = false;
-                this.editingProduct = {};
-                this.selectedCodes = [];
-                this.loading = true;
-              }).catch(err => {
-            console.log(err);
-            this.$message({
-              type: 'error',
-              message: '添加文创产品失败！请检查格式是否正确！'
-            });
+            message: '添加文创产品失败！请检查格式是否正确！'
           });
-        }
+        });
       } catch (error) {
         console.error('未知错误:', error);
         this.$message.error('发生未知错误，请稍后再试');
@@ -310,8 +409,8 @@ export default {
         minStock: null,
         maxStock: null
       };
-      this.priceRange = [0, 1000];
-      this.stockRange = [0, 50000];
+      this.priceRange = [0, 99999];
+      this.stockRange = [0, 999999];
       this.loading = true;
       this.fetchData();
     },
@@ -360,6 +459,7 @@ export default {
   },
   mounted() {
     this.fetchData();
+    this.loadCategoryOptions();
   }
 }
 </script>
@@ -422,11 +522,6 @@ export default {
                           placeholder="请输入内容,可为空"
                           clearable></el-input>
               </el-form-item>
-              <el-form-item label="占位格" :label-width="searchLabelWidth" class="strong">
-                <el-input autocomplete="off" suffix-icon="el-icon-circle-close"
-                          placeholder="只是因为这空着不好看..."
-                          :disabled="true"></el-input>
-              </el-form-item>
             </el-form>
           </div>
         </div>
@@ -437,7 +532,7 @@ export default {
               <el-slider
                   v-model="priceRange"
                   range
-                  :max="1000">
+                  :max="99999">
               </el-slider>
             </div>
           </el-card>
@@ -448,7 +543,7 @@ export default {
               <el-slider
                   v-model="stockRange"
                   range
-                  :max="50000">
+                  :max="999999">
               </el-slider>
             </div>
           </el-card>
@@ -466,8 +561,7 @@ export default {
             <el-form ref="drugRef" :model="editingProduct" :rules="rules" style="width: 400px">
               <el-form-item label="文创产品编号" prop="productCode" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="editingProduct.productCode" autocomplete="off" suffix-icon="el-icon-s-order"
-                          placeholder="请输入内容"
-                ></el-input>
+                          placeholder="系统自动生成" :disabled="true"></el-input>
               </el-form-item>
               <el-form-item label="文创产品名称" prop="productName" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="editingProduct.productName" autocomplete="off" suffix-icon="el-icon-notebook-2"
@@ -475,38 +569,38 @@ export default {
                 ></el-input>
               </el-form-item>
               <el-form-item label="分类" prop="category" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="editingProduct.category" autocomplete="off" suffix-icon="el-icon-s-grid"
-                          placeholder="请输入内容"
-                ></el-input>
-              </el-form-item>
-              <el-form-item label="占位格" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input autocomplete="off" suffix-icon="el-icon-circle-close"
-                          placeholder="只是因为这空着不好看..."
-                          :disabled="true"></el-input>
+                <div class="category-select">
+                  <el-checkbox-group v-model="selectedCategories">
+                    <el-checkbox v-for="item in categoryOptions" :key="item" :label="item">
+                      {{ item }}
+                    </el-checkbox>
+                  </el-checkbox-group>
+                  <el-button type="text" class="category-add-btn" @click="addCategoryOption">+ 新建分类</el-button>
+                </div>
               </el-form-item>
             </el-form>
           </div>
           <div style="width: 50%">
             <el-form :model="editingProduct" :rules="rules" style="width: 400px">
               <el-form-item label="展示形式" prop="displayMode" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="editingProduct.displayMode" autocomplete="off" suffix-icon="el-icon-fork-spoon"
-                          placeholder="请输入内容"
-                ></el-input>
+                <el-radio-group v-model="editingProduct.displayMode" class="display-mode-group">
+                  <el-radio v-for="item in displayModeOptions" :key="item.value" :label="item.value">
+                    {{ item.label }}
+                  </el-radio>
+                </el-radio-group>
               </el-form-item>
               <el-form-item label="产品亮点" prop="highlight" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="editingProduct.highlight" autocomplete="off" suffix-icon="el-icon-thumb"
-                          placeholder="请输入内容"
-                ></el-input>
+                <el-input v-model="editingProduct.highlight" readonly placeholder="点击右侧按钮编辑">
+                  <el-button slot="append" icon="el-icon-edit" @click="openHighlightDialog">编辑</el-button>
+                </el-input>
               </el-form-item>
               <el-form-item label="价格" prop="price" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="editingProduct.price" autocomplete="off" suffix-icon="el-icon-s-finance"
-                          placeholder="请输入内容"
-                ></el-input>
+                <el-input-number v-model="editingProduct.price" :min="0" :max="99999"
+                                 controls-position="right" class="full-width-number"></el-input-number>
               </el-form-item>
               <el-form-item label="库存" prop="stock" :label-width="searchLabelWidth" class="strong marginWidth">
-                <el-input v-model="editingProduct.stock" autocomplete="off" suffix-icon="el-icon-box"
-                          placeholder="请输入内容"
-                ></el-input>
+                <el-input-number v-model="editingProduct.stock" :min="0"
+                                 controls-position="right" class="full-width-number"></el-input-number>
               </el-form-item>
             </el-form>
           </div>
@@ -524,11 +618,9 @@ export default {
                 也支持自定义分类，
                 <span :style="{ color: defaultTagColor}">自定义标签默认采用此配色。</span>
               </p>
-              <p class="strong">4.🎭 展示形式建议控制在
-                <span :style="{color: dangerColor}">2个字符</span>
-                内，如「线上」「线下」等，便于前端排版。</p>
+              <p class="strong">4.🎭 展示形式建议使用「线上发售 / 线下限定」，便于前端展示。</p>
               <p class="strong">
-                5.<span :style="{color: dangerColor}">💰 价格上限为¥1000，库存上限为50000。</span>
+                5.<span :style="{color: dangerColor}">💰 价格上限为¥99999，库存不设上限。</span>
               </p>
             </div>
           </el-card>
@@ -538,23 +630,32 @@ export default {
         </div>
       </el-dialog>
 
-      <el-table ref="productsTable" :data="tableData" stripe style="width: 100%" :height="tableHeight"
+      <el-dialog title="产品亮点" :visible.sync="highlightDialogVisible" width="640px" center>
+        <el-input type="textarea" v-model="highlightDraft" :rows="8" maxlength="500"
+                  show-word-limit placeholder="请输入产品亮点内容"></el-input>
+        <span slot="footer" class="dialog-footer">
+          <el-button @click="highlightDialogVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmHighlight">保存</el-button>
+        </span>
+      </el-dialog>
+
+      <el-table ref="productsTable" :data="tableData" stripe style="width: 100%" :height="tableHeight" class="modern-table"
                 v-loading="loading" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="productCode" label="文创产品编号" width="170" fixed="left" sortable></el-table-column>
-        <el-table-column prop="productName" label="文创产品名称" width="200" sortable></el-table-column>
-        <el-table-column prop="category" label="分类" width="200" sortable>
+        <el-table-column prop="productCode" label="文创产品编号" width="160" fixed="left" sortable></el-table-column>
+        <el-table-column prop="productName" label="文创产品名称" min-width="200" sortable></el-table-column>
+        <el-table-column prop="category" label="分类" min-width="160" sortable>
           <template slot-scope="scope">
             <el-tag :style="{borderColor: defaultTagColor}" :color="defaultTagColor" effect="dark">
               {{ scope.row.category || '未分类' }}
             </el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="displayMode" label="展示形式" width="170" sortable></el-table-column>
-        <el-table-column prop="highlight" label="产品亮点" width="220" sortable></el-table-column>
-        <el-table-column prop="price" label="售价(元)" width="220" sortable></el-table-column>
-        <el-table-column prop="stock" label="库存" width="150" sortable></el-table-column>
-        <el-table-column fixed="right" label="操作" width="120">
+        <el-table-column prop="displayMode" label="展示形式" width="120" sortable></el-table-column>
+        <el-table-column prop="highlight" label="产品亮点" min-width="240" sortable></el-table-column>
+        <el-table-column prop="price" label="售价(元)" width="120" sortable></el-table-column>
+        <el-table-column prop="stock" label="库存" width="100" sortable></el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
           <template slot-scope="scope">
             <el-button
                 @click="openEdit(scope.row.productCode)"
@@ -673,25 +774,58 @@ export default {
   padding-top: 16px;
 }
 
-.panel-theme ::v-deep .el-table {
-  border-radius: 14px;
+.panel-theme ::v-deep .modern-table {
+  border-radius: 16px;
   overflow: hidden;
-  background: rgba(255, 255, 255, 0.96);
+  background: #ffffff;
+  border: 1px solid rgba(31, 122, 109, 0.18);
+  box-shadow: 0 12px 28px rgba(31, 56, 94, 0.12);
 }
 
-.panel-theme ::v-deep .el-table th {
-  background: rgba(31, 122, 109, 0.08);
+.panel-theme ::v-deep .modern-table .el-table__header th {
+  background: linear-gradient(120deg, rgba(31, 122, 109, 0.18), rgba(199, 90, 49, 0.12));
   color: var(--ink);
+  font-weight: 600;
 }
 
-.panel-theme ::v-deep .el-table__fixed,
-.panel-theme ::v-deep .el-table__fixed-right {
+.panel-theme ::v-deep .modern-table .el-table__body tr:hover > td {
+  background: rgba(31, 122, 109, 0.08);
+}
+
+.panel-theme ::v-deep .modern-table::before {
+  height: 0;
+}
+
+.panel-theme ::v-deep .modern-table .el-table__fixed,
+.panel-theme ::v-deep .modern-table .el-table__fixed-right {
+  background: #ffffff;
   box-shadow: none;
-  background: rgba(255, 255, 255, 0.96);
+}
+.category-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.panel-theme ::v-deep .el-table__fixed-right::before,
-.panel-theme ::v-deep .el-table__fixed::before {
-  background-color: transparent;
+.category-select ::v-deep .el-checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+}
+
+.category-add-btn {
+  align-self: flex-start;
+  padding: 0;
+  color: var(--teal);
+}
+
+.display-mode-group {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.full-width-number {
+  width: 100%;
 }
 </style>

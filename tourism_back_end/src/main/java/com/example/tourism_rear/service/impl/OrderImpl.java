@@ -52,15 +52,6 @@ public class OrderImpl implements OrderService {
     public void addOrder(OrderRequest order, LocalDateTime localDateTime) {
         orderMapper.addOrder(order, localDateTime);
         orderMapper.addOrderDetails(order);
-        if (order != null && order.getUid() != null && order.getOrderId() != null) {
-            messageService.createMessageIfAbsent(
-                    order.getUid(),
-                    "ORDER_PENDING",
-                    String.valueOf(order.getOrderId()),
-                    "订单待支付",
-                    "订单 " + order.getOrderId() + " 尚未支付，请及时完成付款。"
-            );
-        }
     }
 
     @Override
@@ -354,6 +345,38 @@ public class OrderImpl implements OrderService {
         return orderMapper.closeExpiredOrders(expireBefore, now);
     }
 
+    @Override
+    public int getMonthlyProductPurchaseSum(Integer uid, String productCode) {
+        if (uid == null || productCode == null || productCode.isBlank()) {
+            return 0;
+        }
+        LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
+        LocalDateTime endOfMonth = startOfMonth.plusMonths(1);
+        return orderMapper.getMonthlyProductPurchaseSum(uid, productCode, startOfMonth, endOfMonth);
+    }
+
+    @Override
+    public void createPendingPaymentMessage(Integer uid, Integer orderId) {
+        if (uid == null || orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(orderId);
+        if (orderInfo == null || orderInfo.getUid() == null || !orderInfo.getUid().equals(uid)) {
+            throw new RuntimeException("订单不存在");
+        }
+        Integer status = orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus();
+        if (status != 0) {
+            return;
+        }
+        messageService.createMessageIfAbsent(
+                uid,
+                "ORDER_PENDING",
+                String.valueOf(orderId),
+                "订单待支付",
+                "订单 " + orderId + " 尚未支付，请及时完成付款。"
+        );
+    }
+
     private void ensureOrderActive(Integer orderId) {
         if (orderId == null) {
             throw new RuntimeException("订单信息缺失");
@@ -425,11 +448,11 @@ public class OrderImpl implements OrderService {
 
     private void validatePurchaseRules(Integer uid, Integer orderId) {
         if (uid == null || orderId == null) {
-            throw new RuntimeException("璁㈠崟淇℃伅缂哄け");
+            throw new RuntimeException("订单信息缺失");
         }
         List<Map<String, Object>> productInfo = orderMapper.getOrderDetailsProductCodes(orderId);
         if (productInfo == null || productInfo.isEmpty()) {
-            throw new RuntimeException("璁㈠崟璇︽儏涓虹┖");
+            throw new RuntimeException("订单详情为空");
         }
         LocalDateTime startOfMonth = LocalDate.now().withDayOfMonth(1).atStartOfDay();
         LocalDateTime endOfMonth = startOfMonth.plusMonths(1);

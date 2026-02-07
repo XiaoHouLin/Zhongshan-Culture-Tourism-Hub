@@ -57,7 +57,7 @@ public class OrderController {
 
     @GetMapping("/getOrderInfoBy={uid}")
     public Result getTotalPrice(@PathVariable Integer uid) {
-        log.info("??????????????????uid??{}", uid);
+        log.info("查询用户未完成订单信息，用户uid为{}", uid);
         Map<String, Object> orderInfo = new HashMap<>();
         OrderInfoAddDate activeOrder = orderService.getActiveOrderByUid(uid);
         if (activeOrder != null && activeOrder.getOrderId() != null) {
@@ -85,7 +85,7 @@ public class OrderController {
 
     @PostMapping("/update")
     public Result updateOrder(@RequestBody OrderRequest order) {
-        log.info("?????????id??{}???????{}", order.getOrderId(), order);
+        log.info("更新购物车订单，订单id为{}，订单数据为{}", order.getOrderId(), order);
         try {
             orderService.updateOrder(order);
             return Result.success();
@@ -102,6 +102,19 @@ public class OrderController {
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
         }
+    }
+
+    @GetMapping("/monthly-purchase")
+    public Result getMonthlyPurchase(@RequestParam String productCode, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        if (productCode == null || productCode.isBlank()) {
+            return Result.error("产品编号缺失");
+        }
+        int count = orderService.getMonthlyProductPurchaseSum(uid, productCode);
+        return Result.success(count);
     }
 
     @GetMapping("/pickup/info")
@@ -158,6 +171,23 @@ public class OrderController {
         }
         try {
             orderService.closeOrder(update.getOrderId(), uid, isAdmin(request));
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/pending-message")
+    public Result createPendingMessage(@RequestBody OrderStatusUpdate update, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        if (update == null || update.getOrderId() == null) {
+            return Result.error("订单信息缺失");
+        }
+        try {
+            orderService.createPendingPaymentMessage(uid, update.getOrderId());
             return Result.success();
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());
