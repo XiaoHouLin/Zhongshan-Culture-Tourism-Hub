@@ -1,0 +1,3 @@
+# Local secrets (do not commit)
+config/application-secrets.yml
+tourism_back_end/config/application-secrets.yml

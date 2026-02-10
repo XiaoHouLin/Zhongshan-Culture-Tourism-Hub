@@ -100,6 +100,15 @@ export default {
         this.scrollToBottom();
       }
     },
+    handleKeydown(event) {
+      if (!event) {
+        return;
+      }
+      if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+        event.preventDefault();
+        this.sendMessage();
+      }
+    },
     applyQuickQuestion(question) {
       if (!question) {
         return;
@@ -161,11 +170,12 @@ export default {
         <div class="chat-input">
           <el-input
             v-model="input"
-            type="text"
-            placeholder="请输入中山市旅游相关问题"
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 4 }"
+            placeholder="请输入中山市旅游相关问题（Ctrl+Enter 发送）"
             maxlength="200"
             clearable
-            @keyup.enter.native="sendMessage"
+            @keydown.native="handleKeydown"
           ></el-input>
           <el-button type="primary" :loading="sending" @click="sendMessage">发送</el-button>
         </div>
@@ -220,7 +230,7 @@ export default {
   right: 24px;
   bottom: 96px;
   width: 380px;
-  max-height: 560px;
+  height: 560px;
   background: #ffffff;
   border-radius: 18px;
   box-shadow: 0 20px 40px rgba(31, 56, 94, 0.2);
@@ -277,13 +287,16 @@ export default {
   flex-direction: column;
   gap: 12px;
   padding: 12px 16px 16px;
+  flex: 1;
+  min-height: 0;
 }
 
 .chat-body {
   background: #f7f4ef;
   border-radius: 12px;
   padding: 14px;
-  max-height: 360px;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   min-height: 220px;
 }
@@ -353,19 +366,20 @@ export default {
   display: grid;
   grid-template-columns: 1fr 84px;
   gap: 8px;
-  align-items: center;
+  align-items: end;
   background: #f6f8f7;
   border-radius: 12px;
   padding: 8px;
 }
 
-.chat-input ::v-deep .el-input__inner {
+.chat-input ::v-deep .el-textarea__inner {
   border-radius: 10px;
   border: 1px solid rgba(31, 56, 94, 0.12);
-  height: 40px;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
-.chat-input ::v-deep .el-input__inner:focus {
+.chat-input ::v-deep .el-textarea__inner:focus {
   border-color: #1f7a6d;
 }
 

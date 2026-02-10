@@ -1,6 +1,8 @@
 spring:
   application:
     name: tourism_rear
+  config:
+    import: ${SPRING_CONFIG_IMPORT:optional:file:./config/application-secrets.yml,optional:file:../config/application-secrets.yml,optional:file:./tourism_back_end/config/application-secrets.yml}
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/tourism}
     username: ${DB_USERNAME:root}
@@ -43,4 +45,8 @@ qwen:
   api-key: ${QWEN_API_KEY:}
   base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions}
   model: ${QWEN_MODEL:qwen3-max-2026-01-23}
+  temp-token-url: ${QWEN_TEMP_TOKEN_URL:https://dashscope.aliyuncs.com/api/v1/tokens}
+  temp-token-ttl: ${QWEN_TEMP_TOKEN_TTL:1800}
   timeout-ms: ${QWEN_TIMEOUT_MS:12000}
+  proxy-host: ${QWEN_PROXY_HOST:}
+  proxy-port: ${QWEN_PROXY_PORT:0}

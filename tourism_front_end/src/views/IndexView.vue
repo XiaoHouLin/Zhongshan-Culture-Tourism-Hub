@@ -49,33 +49,6 @@ export default {
           { value: '登录后下单', label: '交易安全' }
         ]
       },
-      quickEntries: [
-        {
-          title: '景点导览',
-          description: '景点、街区与主题线路一站汇总。',
-          action: '查看线路',
-          route: '/travel-experiences',
-          tag: '必看',
-          icon: '🧭'
-        },
-        {
-          title: '文创商城',
-          description: '游客可免登录浏览中山文创与灯饰设计。',
-          action: '立即逛商城',
-          route: '/culturalProducts',
-          tag: '核心',
-          icon: '🛍️',
-          featured: true
-        },
-        {
-          title: '行程管理',
-          description: '登录后可收藏景点与管理订单。',
-          action: '立即登录',
-          route: '/login',
-          tag: '账户',
-          icon: '👤'
-        }
-      ],
       cityIntro: {
         title: '城市介绍',
         description:
@@ -93,7 +66,7 @@ export default {
         description:
           '以石岐为传统中心，东区承载商务与城市活力，西区与岐江滨水形成休闲带，北部古镇是灯饰产业核心，南部三乡与五桂山连接山水度假资源。',
         tips: ['建议以石岐老城为起点', '夜游岐江桥与西区滨水', '古镇灯饰城适合白天打卡'],
-        note: '提示：鼠标悬停镇区轮廓查看代表景点与美食。'
+        note: '提示：鼠标悬停镇区名称查看代表景点与美食。'
       },
       mapTags: ['孙文西路骑楼', '岐江夜景', '古镇灯饰博览', '小榄菊花会', '詹园', '五桂山绿道'],
       experienceCards: [
@@ -201,13 +174,82 @@ export default {
       mapReady: false,
       mapError: '',
       geojsonUrl: '/geojson/zhongshan_towns.json',
-      defaultTownImage: '/towns/zhongshan-default.jpg',
+      defaultTownImage: '/towns/Zhongshan_mcp_map.svg',
+      svgBaseMap: '/towns/Zhongshan_mcp_map.svg',
+      useSvgMap: false,
+      townCodeMap: {
+        东区街道: 1,
+        南区街道: 2,
+        西区街道: 3,
+        石岐街道: 4,
+        中山港街道: 5,
+        五桂山街道: 6,
+        南朗街道: 7,
+        三乡镇: 8,
+        坦洲镇: 9,
+        神湾镇: 10,
+        板芙镇: 11,
+        大涌镇: 12,
+        沙溪镇: 13,
+        横栏镇: 14,
+        古镇镇: 15,
+        小榄镇: 16,
+        东凤镇: 17,
+        南头镇: 18,
+        黄圃镇: 19,
+        三角镇: 20,
+        民众街道: 21,
+        港口镇: 22,
+        阜沙镇: 23
+      },
+      townSvgElementMap: null,
+      townSvgLoaded: false,
+      townSvgError: '',
+      townFeatureSource: '/data/镇区特色信息.md',
+      townFeatureMap: {},
+      townFeatureLoading: false,
+      townFeatureError: '',
+      townFeatureTruncated: false,
+      townDialogVisible: false,
+      townDialogData: null,
+      imageDialogVisible: false,
+      imageDialogSrc: '',
+      imageDialogTitle: '',
+      scenicImageFiles: [
+        '东凤孖水天后宫.png',
+        '中国(大涌)红木文化博览城.jpg',
+        '中山创益文化园景区.jpg',
+        '中山温泉旅游度假区.jpg',
+        '中山湿地公园.jpg',
+        '中山詹园.png',
+        '伟丰生态农业公园.png',
+        '华艺广场景区.jpg',
+        '大尖山露营公园景区.jpg',
+        '孙中山故里旅游区.png',
+        '孙文西路步行街.png',
+        '小榄菊花园.jpg',
+        '岐江公园.jpg',
+        '得能湖公园.jpg',
+        '沙溪公园.jpg',
+        '浮虚山公园.jpg',
+        '玉泉洞仙庙.jpg',
+        '神湾堡.jpg',
+        '紫马岭公园.jpeg',
+        '罐头艺术公园.jpg',
+        '西江花洲公园.jpg',
+        '迪茵湖田家舍生态农场景区.jpg',
+        '里溪·鲤印象景区.jpg'
+      ],
       activeTown: {
         name: '中山市',
         description: '珠江西岸的岭南水乡城市，灯饰产业与历史人文相映成趣。',
         sights: ['孙中山故居', '岐江夜景', '孙文西路', '五桂山'],
         foods: ['石岐乳鸽', '小榄菊花茶', '沙溪扣肉'],
-        image: '/towns/zhongshan-default.jpg'
+        image: '/towns/Zhongshan_mcp_map.svg',
+        featureTitle: '',
+        featureSections: [],
+        featurePreviewSections: [],
+        featureHasMore: false
       },
       townInfo: {
         石岐街道: {
@@ -219,6 +261,11 @@ export default {
           description: '城市活力片区，公园与城市广场集聚。',
           sights: ['紫马岭公园', '中山纪念公园'],
           foods: ['广式早茶', '特色茶点']
+        },
+        中山港街道: {
+          description: '港口产业与滨水生活交融的片区。',
+          sights: ['滨江绿道', '商务片区'],
+          foods: ['湾区海味', '本地小食']
         },
         西区街道: {
           description: '滨水休闲带，适合慢行与夜游。',
@@ -235,7 +282,7 @@ export default {
           sights: ['五桂山风景区', '逍遥谷'],
           foods: ['山泉鱼', '山野菜']
         },
-        南朗镇: {
+        南朗街道: {
           description: '孙中山故里所在地，历史人文浓厚。',
           sights: ['孙中山故居', '翠亨村', '崖口村'],
           foods: ['崖口海鲜', '海鲜粥']
@@ -280,7 +327,7 @@ export default {
           sights: ['港口滨水绿道', '田园风光'],
           foods: ['河鲜汤品', '地道小吃']
         },
-        民众镇: {
+        民众街道: {
           description: '水乡田园，适合亲子慢游。',
           sights: ['民众水乡', '田园体验'],
           foods: ['水乡小吃', '农家风味']
@@ -342,6 +389,52 @@ export default {
         return '游';
       }
       return this.currentUser.username.trim().slice(0, 1);
+    },
+    townList() {
+      const codeMap = this.townCodeMap || {};
+      let names = Object.keys(codeMap);
+      if (!names.length && this.townInfo) {
+        names = Object.keys(this.townInfo);
+      }
+      return names.sort((a, b) => {
+        const codeA = codeMap[a];
+        const codeB = codeMap[b];
+        if (Number.isFinite(codeA) && Number.isFinite(codeB)) {
+          return codeA - codeB;
+        }
+        if (Number.isFinite(codeA)) {
+          return -1;
+        }
+        if (Number.isFinite(codeB)) {
+          return 1;
+        }
+        return a.localeCompare(b, 'zh-Hans-CN');
+      });
+    },
+    dialogSections() {
+      const data = this.townDialogData;
+      const sections = data && Array.isArray(data.featureSections) ? data.featureSections : [];
+      if (!sections.length) {
+        return { primary: [], secondary: [] };
+      }
+      const primary = [];
+      const secondary = [];
+      sections.forEach(section => {
+        if (this.isTownOverviewSection(section.title) || this.isTownKeySection(section.title)) {
+          primary.push(section);
+        } else {
+          secondary.push(section);
+        }
+      });
+      const primaryTrimmed = primary.slice(0, 2);
+      const remaining = primary.length > 2 ? primary.slice(2).concat(secondary) : secondary;
+      if (!primaryTrimmed.length) {
+        return {
+          primary: sections.slice(0, 2),
+          secondary: sections.slice(2)
+        };
+      }
+      return { primary: primaryTrimmed, secondary: remaining };
     }
   },
   watch: {
@@ -559,10 +652,10 @@ export default {
         return;
       }
       const map = new AMap.Map('zs-amap', {
-        zoom: 10.4,
+        zoom: 9.4,
         center: [113.391, 22.521],
         viewMode: '2D',
-        zooms: [9, 13],
+        zooms: [8, 13],
         mapStyle: 'amap://styles/whitesmoke'
       });
       this.mapInstance = map;
@@ -686,7 +779,7 @@ export default {
           this.clearMapLabels(map);
           this.mapLabels = subFeatures.map(feature => {
             return new AMap.Text({
-              text: feature.properties.name,
+              text: this.formatTownLabel(feature.properties.name),
               position: feature.properties.center,
               offset: new AMap.Pixel(0, 0),
               style: {
@@ -714,7 +807,7 @@ export default {
             }
           });
           if (this.mapPolygons.length) {
-            map.setFitView(this.mapPolygons, false, [60, 60, 60, 60]);
+            map.setFitView(this.mapPolygons, false, [90, 90, 90, 90]);
           }
           this.mapReady = true;
           this.mapLoading = false;
@@ -781,7 +874,7 @@ export default {
               } else {
                 this.mapError = '';
                 if (this.mapPolygons.length) {
-                  map.setFitView(this.mapPolygons, false, [60, 60, 60, 60]);
+                  map.setFitView(this.mapPolygons, false, [90, 90, 90, 90]);
                 }
               }
               this.mapReady = hasTown;
@@ -861,7 +954,7 @@ export default {
           this.getGeojsonCenter(coordinates);
         if (center && Array.isArray(center) && center.length === 2) {
           const label = new AMap.Text({
-            text: name,
+            text: this.formatTownLabel(name),
             position: center,
             offset: new AMap.Pixel(0, 0),
             style: {
@@ -1031,7 +1124,7 @@ export default {
         const center = this.resolveDistrictCenter(district);
         if (center) {
           const label = new AMap.Text({
-            text: name,
+            text: this.formatTownLabel(name),
             position: center,
             offset: new AMap.Pixel(0, 0),
             style: {
@@ -1049,45 +1142,500 @@ export default {
       }
     },
     normalizeTownName(name) {
-      if (this.townInfo[name]) {
+      if (!name) {
+        return name;
+      }
+      const pool = new Set([
+        ...Object.keys(this.townInfo || {}),
+        ...Object.keys(this.townFeatureMap || {}),
+        ...Object.keys(this.townCodeMap || {})
+      ]);
+      if (pool.has(name)) {
         return name;
       }
       const trimmed = name.replace(/(市|区|镇|街道)$/g, '');
-      const match = Object.keys(this.townInfo).find(key => key.includes(trimmed));
+      const match = Array.from(pool).find(key => {
+        const keyTrimmed = key.replace(/(市|区|镇|街道)$/g, '');
+        return key.includes(trimmed) || trimmed.includes(keyTrimmed);
+      });
       return match || name;
+    },
+    normalizeTownNameLoose(name) {
+      if (!name) {
+        return name;
+      }
+      const cleaned = name.replace(/[：:]/g, '').replace(/\s+/g, '');
+      const pool = Object.keys(this.townCodeMap || {});
+      if (pool.includes(cleaned)) {
+        return cleaned;
+      }
+      const trimmed = cleaned.replace(/(市|区|镇|街道)$/g, '');
+      const match = pool.find(key => {
+        const keyTrimmed = key.replace(/(市|区|镇|街道)$/g, '');
+        return key.includes(trimmed) || trimmed.includes(keyTrimmed);
+      });
+      return match || cleaned;
+    },
+    async loadTownFeatures() {
+      this.townFeatureLoading = true;
+      this.townFeatureError = '';
+      try {
+        const response = await fetch(this.townFeatureSource, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('feature md not found');
+        }
+        const buffer = await response.arrayBuffer();
+        let text = '';
+        try {
+          text = new TextDecoder('utf-8').decode(buffer);
+        } catch (error) {
+          text = await response.text();
+        }
+        if (text.includes('�')) {
+          try {
+            text = new TextDecoder('gbk').decode(buffer);
+          } catch (error) {
+            // ignore decoding fallback
+          }
+        }
+        this.townFeatureMap = this.parseTownFeatureText(text);
+      } catch (error) {
+        this.townFeatureError = '镇区特色信息加载失败，请检查文件路径。';
+        this.townFeatureMap = {};
+      } finally {
+        this.townFeatureLoading = false;
+        this.setActiveTown(this.activeTown.name);
+        if (this.townDialogVisible) {
+          this.townDialogData = { ...this.activeTown };
+        }
+      }
+    },
+    parseTownFeatureText(text) {
+      if (!text) {
+        return {};
+      }
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      const result = {};
+      let current = null;
+      const finalize = () => {
+        if (current && current.name) {
+          current.sections = this.buildTownFeatureSections(current.lines);
+          result[current.name] = current;
+        }
+      };
+      lines.forEach(rawLine => {
+        const line = rawLine.trim();
+        if (!line) {
+          return;
+        }
+        const headingMatch = line.match(/^(\d{1,2})[\\.、．]\s*(.+)$/);
+        if (headingMatch) {
+          finalize();
+          const townRaw = this.cleanTownTitle(headingMatch[2]);
+          const townName = this.normalizeTownNameLoose(townRaw);
+          current = {
+            name: townName,
+            spot: '',
+            lines: []
+          };
+          return;
+        }
+        if (!current) {
+          return;
+        }
+        if (!current.spot) {
+          current.spot = line;
+          return;
+        }
+        current.lines.push(line);
+      });
+      finalize();
+      return result;
+    },
+    cleanTownTitle(title) {
+      if (!title) {
+        return '';
+      }
+      return title.replace(/[：:]/g, '').replace(/\s+/g, '');
+    },
+    buildTownFeatureSections(lines) {
+      if (!Array.isArray(lines) || !lines.length) {
+        return [];
+      }
+      const sections = [];
+      let current = { title: '概览', lines: [] };
+      const pushCurrent = () => {
+        if (current && current.lines.length) {
+          sections.push(current);
+        }
+      };
+      lines.forEach(rawLine => {
+        const line = rawLine.trim();
+        if (!line) {
+          return;
+        }
+        if (this.isTownSectionTitle(line)) {
+          pushCurrent();
+          current = { title: line.replace(/[：:]/g, ''), lines: [] };
+          return;
+        }
+        current.lines.push(line);
+      });
+      pushCurrent();
+      return sections;
+    },
+    buildTownFeaturePreview(sections) {
+      if (!Array.isArray(sections) || !sections.length) {
+        return { sections: [], hasMore: false };
+      }
+      const picked = [];
+      const pickByTitle = titles => {
+        const match = sections.find(section => {
+          if (!section || !section.title) {
+            return false;
+          }
+          const title = section.title.replace(/[：:]/g, '');
+          return titles.some(item => title.includes(item)) && !picked.includes(section);
+        });
+        if (match) {
+          picked.push(match);
+        }
+      };
+      pickByTitle(['概览', '简介', '介绍']);
+      pickByTitle(['关键信息', '关键数据']);
+      sections.forEach(section => {
+        if (picked.length < 2 && section && !picked.includes(section)) {
+          picked.push(section);
+        }
+      });
+      let trimmed = false;
+      const previewSections = picked.map(section => {
+        const title = section.title || '';
+        const maxLines = /关键信息|关键数据/.test(title) ? 6 : 4;
+        const lines = Array.isArray(section.lines) ? section.lines.slice(0, maxLines) : [];
+        if (section.lines && section.lines.length > lines.length) {
+          trimmed = true;
+        }
+        return { title, lines };
+      });
+      return {
+        sections: previewSections,
+        hasMore: sections.length > picked.length || trimmed
+      };
+    },
+    isTownSectionTitle(line) {
+      if (!line) {
+        return false;
+      }
+      const trimmed = line.replace(/[：:]/g, '').trim();
+      if (!trimmed) {
+        return false;
+      }
+      if (trimmed.length > 12) {
+        return false;
+      }
+      if (/[。！？；,.!?]/.test(trimmed)) {
+        return false;
+      }
+      if (/\d/.test(trimmed)) {
+        return false;
+      }
+      return true;
+    },
+    normalizeScenicKey(value) {
+      if (!value) {
+        return '';
+      }
+      return value
+        .replace(/\.[a-zA-Z0-9]+$/g, '')
+        .replace(/[()（）]/g, '')
+        .replace(/[，,。！？：:；;、]/g, '')
+        .replace(/[\s·•\-_]/g, '')
+        .replace(/(景区|旅游区|风景区)/g, '')
+        .trim();
+    },
+    expandScenicKeys(value) {
+      const base = this.normalizeScenicKey(value);
+      if (!base) {
+        return [];
+      }
+      const variants = new Set();
+      const add = item => {
+        if (item) {
+          variants.add(item);
+        }
+      };
+      add(base);
+      if (base.startsWith('中山市')) {
+        add(base.replace(/^中山市/, '中山'));
+        add(base.replace(/^中山市/, ''));
+      }
+      if (base.startsWith('中山')) {
+        add(base.replace(/^中山/, ''));
+      }
+      add(base.replace(/市/g, ''));
+      add(base.replace(/花园/g, '公园'));
+      add(base.replace(/公园/g, '花园'));
+      return Array.from(variants).filter(Boolean);
+    },
+    resolveScenicImage(spotName, townName) {
+      const files = this.scenicImageFiles || [];
+      if (!files.length) {
+        return '';
+      }
+      const spotKeys = this.expandScenicKeys(spotName);
+      const townKeys = this.expandScenicKeys(townName);
+      let match = '';
+      const matchByKeys = keys => {
+        if (!keys || !keys.length) {
+          return '';
+        }
+        return (
+          files.find(file => {
+            const fileKeys = this.expandScenicKeys(file);
+            return fileKeys.some(fileKey =>
+              keys.some(key => fileKey === key || fileKey.includes(key) || key.includes(fileKey))
+            );
+          }) || ''
+        );
+      };
+      match = matchByKeys(spotKeys);
+      if (!match) {
+        match = matchByKeys(townKeys);
+      }
+      return match ? `/scenic_spot/${encodeURIComponent(match)}` : '';
+    },
+    async loadTownSvg() {
+      const host = this.$refs.townSvgHost;
+      if (!host) {
+        return;
+      }
+      this.townSvgError = '';
+      try {
+        const response = await fetch(this.svgBaseMap, { cache: 'no-store' });
+        if (!response.ok) {
+          throw new Error('svg not found');
+        }
+        const svgText = await response.text();
+        host.innerHTML = svgText;
+        const svg = host.querySelector('svg');
+        if (svg) {
+          svg.removeAttribute('width');
+          svg.removeAttribute('height');
+          svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+          svg.classList.add('town-svg');
+        }
+        this.bindTownSvgEvents();
+        this.townSvgLoaded = true;
+      } catch (error) {
+        this.townSvgError = '镇区SVG加载失败，请检查文件路径。';
+      }
+    },
+    bindTownSvgEvents() {
+      const host = this.$refs.townSvgHost;
+      if (!host) {
+        return;
+      }
+      const svg = host.querySelector('svg');
+      if (!svg) {
+        return;
+      }
+      this.clearTownSvgEvents();
+      const townNames = this.townList && this.townList.length ? this.townList : Object.keys(this.townInfo || {});
+      const elementMap = {};
+      townNames.forEach(name => {
+        const safeName = typeof CSS !== 'undefined' && CSS.escape ? CSS.escape(name) : name;
+        const elements = new Set();
+        const primary = svg.querySelector(`#${safeName}`);
+        if (primary) {
+          elements.add(primary);
+        }
+        svg.querySelectorAll(`[data-town="${safeName}"]`).forEach(el => elements.add(el));
+        if (!elements.size) {
+          return;
+        }
+          const onEnter = () => this.setActiveTown(name);
+          const onClick = () => this.openTownDialog(name);
+          elements.forEach(el => {
+            el.classList.add('town-region');
+            el.addEventListener('mouseenter', onEnter);
+            el.addEventListener('click', onClick);
+          });
+        elementMap[name] = { elements: Array.from(elements), onEnter, onClick };
+      });
+      this.townSvgElementMap = elementMap;
+      if (!Object.keys(elementMap).length) {
+        this.townSvgError = '镇区SVG未匹配到镇区ID，请检查 id 是否与镇区名称一致。';
+      }
+      this.updateTownSvgActive();
+    },
+    clearTownSvgEvents() {
+      if (!this.townSvgElementMap) {
+        return;
+      }
+      Object.values(this.townSvgElementMap).forEach(item => {
+        if (!item || !item.elements) {
+          return;
+        }
+        item.elements.forEach(el => {
+          el.removeEventListener('mouseenter', item.onEnter);
+          el.removeEventListener('click', item.onClick);
+        });
+      });
+      this.townSvgElementMap = null;
+    },
+    updateTownSvgActive() {
+      if (!this.townSvgElementMap) {
+        return;
+      }
+      Object.entries(this.townSvgElementMap).forEach(([name, item]) => {
+        if (!item || !item.elements) {
+          return;
+        }
+        const isActive = this.activeTown && this.activeTown.name === name;
+        item.elements.forEach(el => {
+          if (isActive) {
+            el.classList.add('is-active');
+          } else {
+            el.classList.remove('is-active');
+          }
+        });
+      });
+    },
+    formatTownLabel(name) {
+      if (!name) {
+        return '';
+      }
+      const normalized = this.normalizeTownName(name);
+      const code = this.townCodeMap[normalized];
+      if (!Number.isFinite(code)) {
+        return normalized || name;
+      }
+      return `${code} ${normalized}`;
     },
     getTownImage(name) {
       if (!name) {
         return this.defaultTownImage;
       }
       const normalized = this.normalizeTownName(name);
-      return `/towns/${encodeURIComponent(normalized)}.jpg`;
+      if (normalized === '中山市' || (!this.townInfo[normalized] && !this.townCodeMap[normalized])) {
+        return this.defaultTownImage;
+      }
+      return `/towns/${encodeURIComponent(normalized)}.svg`;
     },
     handleTownImageError() {
+      const fallback = this.getTownImage(this.activeTown.name);
+      if (this.activeTown.image !== fallback) {
+        this.activeTown.image = fallback;
+        return;
+      }
       if (this.activeTown.image !== this.defaultTownImage) {
         this.activeTown.image = this.defaultTownImage;
+      }
+    },
+    handleDialogImageError() {
+      if (!this.townDialogData) {
+        return;
+      }
+      const fallback = this.getTownImage(this.townDialogData.name);
+      if (this.townDialogData.image !== fallback) {
+        this.townDialogData.image = fallback;
+        return;
+      }
+      if (this.townDialogData.image !== this.defaultTownImage) {
+        this.townDialogData.image = this.defaultTownImage;
       }
     },
     setActiveTown(name) {
       const normalized = this.normalizeTownName(name);
       const info = this.townInfo[normalized];
-      if (info) {
-        this.activeTown = {
-          name: normalized,
-          description: info.description,
-          sights: info.sights,
-          foods: info.foods,
-          image: this.getTownImage(normalized)
-        };
-      } else {
-        this.activeTown = {
-          name,
-          description: '镇区风貌以岭南水乡与现代生活交融为特色。',
-          sights: ['特色街区', '城市公园', '滨水绿道'],
-          foods: ['岭南家常', '地道小吃'],
-          image: this.getTownImage(name)
-        };
+      const feature = this.townFeatureMap[normalized];
+      const fallbackDescription = '镇区风貌以岭南水乡与现代生活交融为特色。';
+      const fallbackSights = ['特色街区', '城市公园', '滨水绿道'];
+      const fallbackFoods = ['岭南家常', '地道小吃'];
+      const featureTitle = feature && feature.spot ? feature.spot : info && info.sights ? info.sights[0] : '';
+      const featureSections =
+        feature && feature.sections && feature.sections.length
+          ? feature.sections
+          : this.buildTownFeatureSections(
+              []
+                .concat(info && info.description ? [info.description] : [])
+                .concat(info && info.sights ? ['特色文化', ...info.sights] : [])
+                .concat(info && info.foods ? ['特色美食', ...info.foods] : [])
+            );
+      const previewResult = this.buildTownFeaturePreview(featureSections);
+      const featurePreviewSections = previewResult.sections;
+      const featureHasMore = previewResult.hasMore;
+      let scenicImage = normalized === '中山市' ? '' : this.resolveScenicImage(featureTitle, normalized);
+      if (!scenicImage && normalized !== '中山市' && info && Array.isArray(info.sights)) {
+        scenicImage =
+          info.sights.map(spot => this.resolveScenicImage(spot, normalized)).find(Boolean) || '';
       }
+      const image = scenicImage || this.getTownImage(normalized);
+      this.activeTown = {
+        name: normalized,
+        description: info ? info.description : fallbackDescription,
+        sights: info ? info.sights : fallbackSights,
+        foods: info ? info.foods : fallbackFoods,
+        image,
+        featureTitle,
+        featureSections,
+        featurePreviewSections,
+        featureHasMore
+      };
+      this.updateTownSvgActive();
+      this.$nextTick(() => this.updateTownFeatureClamp());
+    },
+    openTownDialog(name) {
+      if (name) {
+        this.setActiveTown(name);
+      }
+      this.townDialogData = { ...this.activeTown };
+      this.townDialogVisible = true;
+    },
+    openImageDialog(src, title) {
+      if (!src) {
+        return;
+      }
+      this.imageDialogSrc = src;
+      this.imageDialogTitle = title || '';
+      this.imageDialogVisible = true;
+    },
+    updateTownFeatureClamp() {
+      const body = this.$refs.townFeatureBody;
+      if (!body) {
+        this.townFeatureTruncated = false;
+        return;
+      }
+      body.style.maxHeight = '';
+      const available = body.clientHeight;
+      const total = body.scrollHeight;
+      if (total <= available + 1) {
+        this.townFeatureTruncated = false;
+        return;
+      }
+      const sample = body.querySelector('p') || body;
+      const computed = window.getComputedStyle(sample);
+      let lineHeight = parseFloat(computed.lineHeight);
+      if (!Number.isFinite(lineHeight)) {
+        const fontSize = parseFloat(computed.fontSize) || 14;
+        lineHeight = fontSize * 1.6;
+      }
+      const newMax = Math.max(available - lineHeight, 0);
+      body.style.maxHeight = `${newMax}px`;
+      this.townFeatureTruncated = true;
+    },
+    isTownKeySection(title) {
+      if (!title) {
+        return false;
+      }
+      return /关键信息|关键数据/.test(title);
+    },
+    isTownOverviewSection(title) {
+      if (!title) {
+        return false;
+      }
+      return /概览|简介|介绍/.test(title);
     }
   },
   created() {
@@ -1099,15 +1647,26 @@ export default {
     }
     this.$nextTick(() => {
       this.initReveal();
-      this.initAmap();
-      this.activeTown.image = this.getTownImage(this.activeTown.name);
+      if (!this.useSvgMap) {
+        this.initAmap();
+      }
+      this.loadTownSvg();
+      this.loadTownFeatures();
+      this.setActiveTown(this.activeTown.name);
+      this.updateTownFeatureClamp();
     });
+    window.addEventListener('resize', this.updateTownFeatureClamp);
   },
   beforeDestroy() {
     this.cleanupReveal();
+    this.clearTownSvgEvents();
+    window.removeEventListener('resize', this.updateTownFeatureClamp);
     if (this.mapLoadTimer) {
       clearTimeout(this.mapLoadTimer);
       this.mapLoadTimer = null;
+    }
+    if (this.$refs.townSvgHost) {
+      this.$refs.townSvgHost.innerHTML = '';
     }
     if (this.mapInstance) {
       this.clearMapLabels(this.mapInstance);
@@ -1250,42 +1809,8 @@ export default {
         </div>
       </section>
 
-      <section class="quick-entry-section content-container reveal">
-        <div class="section-header">
-          <h3 class="section-title">功能入口</h3>
-          <p class="section-subtitle">从导览到商城，快速抵达你需要的服务。</p>
-        </div>
-        <el-row :gutter="24">
-          <el-col
-            v-for="(entry, index) in quickEntries"
-            :key="entry.title"
-            :md="8"
-            :sm="12"
-            :xs="24"
-          >
-            <el-card
-              class="quick-card stagger"
-              :class="{ 'quick-card--featured': entry.featured }"
-              shadow="hover"
-              :style="{ transitionDelay: `${index * 0.08}s` }"
-              @click.native="goTo(entry.route)"
-            >
-              <div class="quick-icon">{{ entry.icon }}</div>
-              <div class="quick-body">
-                <div class="quick-title">
-                  <span>{{ entry.title }}</span>
-                  <span class="quick-tag">{{ entry.tag }}</span>
-                </div>
-                <p class="quick-description">{{ entry.description }}</p>
-                <span class="quick-action">{{ entry.action }} →</span>
-              </div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </section>
-
       <section class="city-intro-section content-container reveal">
-        <el-row :gutter="32">
+            <el-row :gutter="32" class="map-overview-row" type="flex" align="stretch">
           <el-col :md="14" :sm="24">
             <div class="intro-copy">
               <h3 class="section-title">{{ cityIntro.title }}</h3>
@@ -1322,47 +1847,32 @@ export default {
                     <p>地图加载中...</p>
                     <small>首次加载需要几秒，请稍候。</small>
                   </div>
-                  <div class="map-hint">鼠标悬停镇区查看特色</div>
                 </div>
-                <p v-if="mapLoading && mapBaseReady" class="map-status">镇区数据加载中...</p>
-                <p v-else-if="mapError" class="map-status map-status--error">{{ mapError }}</p>
-                <div class="map-tags">
-                  <span v-for="tag in mapTags" :key="tag" class="map-tag">{{ tag }}</span>
-                </div>
+                <p v-if="mapError" class="map-status map-status--error">{{ mapError }}</p>
               </div>
             </el-col>
             <el-col :md="8" :sm="24">
-              <div class="map-detail-card reveal">
-                <div class="map-detail-header">
-                  <h4>{{ activeTown.name }}</h4>
-                  <span class="map-detail-chip">镇区特色</span>
-                </div>
-                <div class="map-detail-media">
-                  <img :src="activeTown.image" :alt="activeTown.name" @error="handleTownImageError" />
-                </div>
-                <p class="map-detail-description">{{ activeTown.description }}</p>
-                <div class="map-detail-group">
-                  <h5>代表景点</h5>
-                  <div class="map-detail-tags">
-                    <span v-for="spot in activeTown.sights" :key="spot" class="map-detail-tag-item">{{ spot }}</span>
+              <div class="map-detail-stack">
+                <div class="map-detail-card reveal map-detail-card--overview">
+                  <div class="map-detail-header">
+                    <h4>中山市</h4>
+                    <span class="map-detail-chip">城市概览</span>
                   </div>
-                </div>
-                <div class="map-detail-group">
-                  <h5>特色美食</h5>
-                  <div class="map-detail-tags">
-                    <span
-                      v-for="food in activeTown.foods"
-                      :key="food"
-                      class="map-detail-tag-item is-food"
-                    >
-                      {{ food }}
-                    </span>
+                  <p class="map-detail-description">{{ mapOverview.description }}</p>
+                  <div class="map-detail-group">
+                    <h5>出行建议</h5>
+                    <div class="map-detail-tags">
+                      <span v-for="tip in mapOverview.tips" :key="tip" class="map-detail-tag-item">{{ tip }}</span>
+                    </div>
                   </div>
+                  <div class="map-detail-group">
+                    <h5>热门关键词</h5>
+                    <div class="map-detail-tags">
+                      <span v-for="tag in mapTags" :key="tag" class="map-detail-tag-item is-food">{{ tag }}</span>
+                    </div>
+                  </div>
+                  <el-button type="primary" round @click="goTo('/travel-experiences')">查看推荐线路</el-button>
                 </div>
-                <p class="map-detail-note">{{ mapOverview.note }}</p>
-                <el-button type="primary" round @click="goTo('/travel-experiences')">
-                  查看推荐线路
-                </el-button>
               </div>
             </el-col>
           </el-row>
@@ -1371,6 +1881,74 @@ export default {
 
       <section class="experience-section section-surface">
         <div class="content-container">
+          <div class="section-header reveal">
+            <h3 class="section-title">镇区文化与美食</h3>
+            <p class="section-subtitle">点击地图即可查看镇区文化与美食。</p>
+          </div>
+            <el-row :gutter="32" class="reveal town-experience-row" type="flex" align="stretch">
+              <el-col :md="16" :sm="24">
+                <div class="map-card map-card--svg">
+                  <div class="map-visual">
+                    <div class="svg-map svg-map--large">
+                    <div ref="townSvgHost" class="svg-map-inline"></div>
+                    <div v-if="townSvgError" class="map-fallback map-fallback--error">
+                      <p>{{ townSvgError }}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </el-col>
+              <el-col :md="8" :sm="24">
+                <div class="map-detail-card map-detail-card--town">
+                  <div class="map-detail-header">
+                    <h4>{{ formatTownLabel(activeTown.name) }}</h4>
+                    <span class="map-detail-chip">镇区特色</span>
+                  </div>
+                  <div class="map-detail-media map-detail-media--click" @click="openImageDialog(activeTown.image, activeTown.featureTitle)">
+                    <img
+                      :src="activeTown.image"
+                      :alt="activeTown.featureTitle || activeTown.name"
+                      @error="handleTownImageError"
+                    />
+                    <span class="map-detail-media-tip">点击查看大图</span>
+                  </div>
+                  <p v-if="activeTown.featureTitle" class="map-detail-media-title">{{ activeTown.featureTitle }}</p>
+                  <div ref="townFeatureBody" class="town-feature-body">
+                    <div
+                      v-for="(section, index) in activeTown.featurePreviewSections"
+                      :key="`${activeTown.name}-section-${index}`"
+                      class="town-feature-section"
+                    >
+                      <h5>{{ section.title }}</h5>
+                      <p v-for="(line, lineIndex) in section.lines" :key="`${index}-${lineIndex}`">{{ line }}</p>
+                    </div>
+                    <p v-if="!activeTown.featurePreviewSections.length" class="map-detail-description">
+                      {{ activeTown.description }}
+                    </p>
+                  </div>
+                  <div class="town-feature-footer">
+                    <span v-if="townFeatureTruncated" class="town-feature-ellipsis">...</span>
+                    <span class="town-feature-hint">点击地图中的镇区查看详情</span>
+                  </div>
+                </div>
+              </el-col>
+            </el-row>
+          <el-row :gutter="24" class="reveal">
+            <el-col :span="24">
+              <div class="map-town-list map-town-list--full">
+                <button
+                  v-for="town in townList"
+                  :key="town"
+                  class="map-town-chip"
+                  :class="{ 'is-active': activeTown && activeTown.name === town }"
+                  @mouseenter="setActiveTown(town)"
+                  @click="setActiveTown(town)"
+                >
+                  {{ formatTownLabel(town) }}
+                </button>
+              </div>
+            </el-col>
+          </el-row>
           <h3 class="section-title reveal">城市特色体验</h3>
           <p class="section-subtitle reveal">
             城市记忆、自然慢游与产业文化三条主线，构成中山的旅行气质。
@@ -1509,6 +2087,97 @@ export default {
       <footer class="footer">
         <p>© 中山市城市文化旅游特色展示系统 · 学生项目</p>
       </footer>
+
+      <el-dialog
+        :visible.sync="townDialogVisible"
+        custom-class="town-detail-dialog"
+        width="88%"
+        top="4vh"
+        append-to-body
+      >
+        <div v-if="townDialogData" class="town-dialog">
+          <div class="town-dialog-hero">
+            <div>
+              <h4>{{ formatTownLabel(townDialogData.name) }}</h4>
+              <p v-if="townDialogData.featureTitle" class="town-dialog-subtitle">
+                {{ townDialogData.featureTitle }}
+              </p>
+            </div>
+            <span class="town-dialog-chip">镇区详情</span>
+          </div>
+          <div class="town-dialog-grid">
+            <div
+              class="town-dialog-media"
+              @click="openImageDialog(townDialogData.image, townDialogData.featureTitle)"
+            >
+              <img
+                :src="townDialogData.image"
+                :alt="townDialogData.featureTitle || townDialogData.name"
+                @error="handleDialogImageError"
+              />
+              <span class="map-detail-media-tip">点击查看大图</span>
+            </div>
+            <div class="town-dialog-content">
+              <div
+                v-for="(section, index) in dialogSections.primary"
+                :key="`dialog-section-primary-${index}`"
+                class="town-dialog-section"
+                :class="{
+                  'is-key': isTownKeySection(section.title),
+                  'is-overview': isTownOverviewSection(section.title)
+                }"
+              >
+                <h5>{{ section.title }}</h5>
+                <ul v-if="isTownKeySection(section.title)">
+                  <li v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
+                    {{ line }}
+                  </li>
+                </ul>
+                <p v-else v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
+                  {{ line }}
+                </p>
+              </div>
+              <p v-if="!townDialogData.featureSections.length" class="map-detail-description">
+                {{ townDialogData.description }}
+              </p>
+            </div>
+          </div>
+          <div v-if="dialogSections.secondary.length" class="town-dialog-secondary">
+            <div
+              v-for="(section, index) in dialogSections.secondary"
+              :key="`dialog-section-secondary-${index}`"
+              class="town-dialog-section"
+              :class="{
+                'is-key': isTownKeySection(section.title),
+                'is-overview': isTownOverviewSection(section.title)
+              }"
+            >
+              <h5>{{ section.title }}</h5>
+              <ul v-if="isTownKeySection(section.title)">
+                <li v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
+                  {{ line }}
+                </li>
+              </ul>
+              <p v-else v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
+                {{ line }}
+              </p>
+            </div>
+          </div>
+        </div>
+      </el-dialog>
+
+      <el-dialog
+        :visible.sync="imageDialogVisible"
+        custom-class="town-image-dialog"
+        width="auto"
+        top="6vh"
+        append-to-body
+      >
+        <div class="town-image-dialog-body">
+          <img :src="imageDialogSrc" :alt="imageDialogTitle || '镇区图片'" />
+          <p v-if="imageDialogTitle" class="town-image-dialog-title">{{ imageDialogTitle }}</p>
+        </div>
+      </el-dialog>
     </el-main>
     <chat-assistant :is-logged-in="isLoggedIn" />
   </el-container>
@@ -1964,70 +2633,6 @@ export default {
   opacity: 0.9;
 }
 
-.quick-entry-section {
-  margin-top: 64px;
-}
-
-.quick-card {
-  border-radius: 20px;
-  padding: 18px;
-  display: flex;
-  gap: 16px;
-  align-items: flex-start;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-}
-
-.quick-card:hover {
-  transform: translateY(-6px);
-  box-shadow: 0 20px 40px rgba(31, 56, 94, 0.12);
-}
-
-.quick-card--featured {
-  background: linear-gradient(135deg, rgba(199, 90, 49, 0.12), rgba(31, 122, 109, 0.08));
-  border: 1px solid rgba(199, 90, 49, 0.2);
-}
-
-.quick-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 16px;
-  background: rgba(31, 122, 109, 0.12);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 26px;
-}
-
-.quick-title {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--ink);
-  margin-bottom: 6px;
-}
-
-.quick-tag {
-  font-size: 12px;
-  background: var(--accent);
-  color: #ffffff;
-  padding: 2px 8px;
-  border-radius: 999px;
-}
-
-.quick-description {
-  margin: 0 0 10px;
-  color: var(--ink-soft);
-  line-height: 1.6;
-}
-
-.quick-action {
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 13px;
-}
 
 .city-intro-section {
   margin-top: 72px;
@@ -2103,12 +2708,166 @@ export default {
   z-index: 1;
 }
 
+.map-overview-row {
+  --map-panel-height: clamp(520px, 68vh, 720px);
+}
+
+.map-overview-row .map-card,
+.map-overview-row .map-detail-card--overview {
+  height: var(--map-panel-height);
+}
+
+.map-overview-row .map-detail-stack {
+  height: var(--map-panel-height);
+}
+
+.map-overview-row .map-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.map-overview-row .map-card .map-visual {
+  height: 100%;
+  flex: 1;
+}
+
+.map-card--svg {
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+  height: 100%;
+}
+
 .map-visual {
   position: relative;
   height: 520px;
   border-radius: 18px;
   overflow: hidden;
   background: rgba(31, 122, 109, 0.05);
+}
+
+.map-card--svg .map-visual {
+  height: 100%;
+  background: transparent;
+  border-radius: 0;
+  overflow: visible;
+}
+
+.svg-map {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  overflow: visible;
+}
+
+.svg-map--large {
+  padding: 8px;
+  height: 100%;
+}
+
+.svg-map-base,
+.svg-map-overlay {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.svg-map-overlay {
+  position: absolute;
+  inset: 0;
+  opacity: 0.8;
+  filter: drop-shadow(0 10px 18px rgba(31, 56, 94, 0.2));
+  mix-blend-mode: multiply;
+  pointer-events: none;
+}
+
+.svg-map-inline {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+::v-deep .svg-map-inline svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  overflow: visible;
+}
+
+.town-experience-row {
+  align-items: stretch;
+  --town-panel-height: clamp(520px, 68vh, 760px);
+}
+
+.town-experience-row .map-card--svg,
+.town-experience-row .map-detail-card--town {
+  height: var(--town-panel-height);
+}
+
+@media (max-width: 992px) {
+  .map-overview-row .map-card,
+  .map-overview-row .map-detail-card--overview,
+  .map-overview-row .map-detail-stack {
+    height: auto;
+  }
+
+  .map-overview-row .map-card .map-visual {
+    height: 480px;
+  }
+
+  .town-experience-row .map-card--svg,
+  .town-experience-row .map-detail-card--town {
+    height: auto;
+  }
+
+  .svg-map,
+  .svg-map--large,
+  .svg-map-inline,
+  ::v-deep .svg-map-inline svg {
+    height: auto;
+  }
+}
+
+::v-deep .svg-map-inline .town-region {
+  cursor: pointer;
+  pointer-events: all;
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.2s ease, filter 0.2s ease;
+  will-change: transform, filter;
+}
+
+::v-deep .svg-map-inline .town-region,
+::v-deep .svg-map-inline .town-region path {
+  stroke: rgba(31, 122, 109, 0.35);
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+  paint-order: stroke fill;
+  transition: fill 0.2s ease, stroke 0.2s ease, filter 0.2s ease, transform 0.2s ease;
+}
+
+::v-deep .svg-map-inline .town-region.is-active,
+::v-deep .svg-map-inline .town-region:hover,
+::v-deep .svg-map-inline .town-region.is-active path,
+::v-deep .svg-map-inline .town-region:hover path {
+    fill: rgba(199, 90, 49, 0.18) !important;
+    fill-opacity: 1 !important;
+    stroke: rgba(199, 90, 49, 0.8) !important;
+    stroke-width: 2 !important;
+    filter:
+      drop-shadow(0 18px 26px rgba(31, 56, 94, 0.28))
+      drop-shadow(0 -3px 4px rgba(255, 255, 255, 0.45));
+  }
+
+::v-deep .svg-map-inline .town-region.is-active,
+::v-deep .svg-map-inline .town-region:hover {
+  transform: translateY(-8px) scale(1.03);
 }
 
 .amap-container {
@@ -2156,6 +2915,38 @@ export default {
   gap: 10px;
 }
 
+.map-town-list {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.map-town-list--full {
+  width: 100%;
+  justify-content: center;
+}
+
+.map-town-chip {
+  border: 1px solid rgba(31, 122, 109, 0.18);
+  background: #f6fbf9;
+  color: var(--teal);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.map-town-chip:hover,
+.map-town-chip.is-active {
+  background: rgba(31, 122, 109, 0.18);
+  color: #145c52;
+  border-color: rgba(31, 122, 109, 0.4);
+}
+
 .map-status {
   margin: 12px 0 0;
   font-size: 13px;
@@ -2186,6 +2977,16 @@ export default {
   gap: 16px;
   position: relative;
   z-index: 1;
+}
+
+.map-detail-card--town {
+  overflow: hidden;
+}
+
+.map-detail-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .map-detail-header {
@@ -2223,13 +3024,294 @@ export default {
   border: 1px solid rgba(31, 122, 109, 0.12);
   background: rgba(31, 122, 109, 0.06);
   box-shadow: 0 12px 30px rgba(31, 56, 94, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-detail-media--click {
+  cursor: pointer;
+  position: relative;
+}
+
+.map-detail-media--click:hover .map-detail-media-tip {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .map-detail-media img {
-  width: 100%;
-  height: 180px;
-  object-fit: cover;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 220px;
+  object-fit: contain;
   display: block;
+}
+
+.map-detail-media-tip {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  background: rgba(17, 28, 26, 0.72);
+  color: #fff;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.map-detail-media-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.town-feature-body {
+  flex: 1;
+  overflow: hidden;
+  padding-right: 4px;
+  min-height: 0;
+}
+
+.town-feature-section h5 {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.town-feature-section p {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.town-feature-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 12px;
+  margin-top: auto;
+}
+
+.town-feature-ellipsis {
+  font-size: 18px;
+  color: var(--ink-soft);
+  letter-spacing: 2px;
+}
+
+.town-feature-hint {
+  color: var(--ink-soft);
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 122, 109, 0.08);
+}
+
+::v-deep .town-detail-dialog .el-dialog {
+  border-radius: 32px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 122, 109, 0.14);
+  box-shadow: 0 30px 60px rgba(31, 56, 94, 0.18);
+  background:
+    radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.15), transparent 40%),
+    radial-gradient(circle at 88% 18%, rgba(199, 90, 49, 0.12), transparent 45%),
+    #ffffff;
+  position: relative;
+}
+
+::v-deep .town-detail-dialog .el-dialog::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 6px;
+  background: linear-gradient(90deg, #1f7a6d, #d4a14a, #c75a31);
+}
+
+::v-deep .town-detail-dialog {
+  max-width: 1200px;
+}
+
+::v-deep .town-detail-dialog .el-dialog {
+  border-radius: 28px;
+}
+
+::v-deep .town-image-dialog {
+  width: auto !important;
+  max-width: 94vw;
+}
+
+::v-deep .town-image-dialog .el-dialog__wrapper {
+  text-align: center;
+}
+
+::v-deep .town-image-dialog .el-dialog__body {
+  padding: 8px;
+}
+
+::v-deep .town-image-dialog .el-dialog {
+  border-radius: 18px;
+  display: inline-block;
+  width: auto !important;
+  max-width: 94vw;
+}
+
+.town-dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.town-dialog-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.town-dialog-hero h4 {
+  margin: 0;
+  font-size: 20px;
+  color: var(--ink);
+}
+
+.town-dialog-subtitle {
+  margin: 6px 0 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+
+.town-dialog-chip {
+  background: rgba(199, 90, 49, 0.14);
+  color: var(--accent);
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-weight: 600;
+}
+
+.town-dialog-grid {
+  display: grid;
+  grid-template-columns: minmax(280px, 42%) 1fr;
+  gap: 20px;
+  align-items: start;
+}
+
+.town-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.town-dialog-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.town-dialog-media {
+  position: relative;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  box-shadow: 0 14px 30px rgba(31, 56, 94, 0.12);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(31, 122, 109, 0.04);
+}
+
+.town-dialog-media:hover .map-detail-media-tip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.town-dialog-media img {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 42vh;
+  object-fit: contain;
+  display: block;
+}
+
+.town-dialog-section {
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(31, 122, 109, 0.12);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 10px 24px rgba(31, 56, 94, 0.08);
+}
+
+.town-dialog-section h5 {
+  margin: 0 0 8px;
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.town-dialog-section p {
+  margin: 0 0 8px;
+  color: var(--ink-soft);
+  line-height: 1.7;
+  font-size: 13px;
+}
+
+.town-dialog-section.is-overview p {
+  font-size: 14px;
+}
+
+.town-dialog-section ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 6px 16px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.town-dialog-section ul li {
+  position: relative;
+  padding-left: 16px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.town-dialog-section ul li::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+  color: var(--accent);
+}
+
+@media (max-width: 960px) {
+  .town-dialog-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.town-image-dialog-body {
+  text-align: center;
+}
+
+.town-image-dialog-body img {
+  max-width: 90vw;
+  max-height: 85vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.town-image-dialog-title {
+  margin: 12px 0 0;
+  color: var(--ink);
+  font-weight: 600;
 }
 
 .map-detail-group h5 {
@@ -2258,13 +3340,7 @@ export default {
   color: var(--accent);
 }
 
-.map-detail-note {
-  font-size: 12px;
-  color: var(--ink-soft);
-  margin: 0;
-}
-
-.experience-section {
+  .experience-section {
   position: relative;
 }
 

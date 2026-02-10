@@ -31,7 +31,7 @@ This is a full-stack web application for a tourism platform. It consists of a Ja
     *   `axios`: For making HTTP requests to the backend.
     *   `element-ui`: A UI component library.
     *   `echarts` / `v-charts`: For data visualization and charts.
-*   **Architecture:** A single-page application (SPA) that communicates with the backend API. It implements role-based access control (RBAC) on the client-side based on a JWT. The project name in `package.json` is `medicine_system`, which might be a remnant from a template and doesn't match the tourism theme.
+*   **Architecture:** A single-page application (SPA) that communicates with the backend API. It implements role-based access control (RBAC) on the client-side based on a JWT. The project name in `package.json` is `tourism_system`, matching the tourism theme.
 
 ## Building and Running
 

@@ -10,8 +10,11 @@ import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.RestTemplate;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -35,16 +38,34 @@ public class QwenChatService {
     @Value("${qwen.model:qwen3-max-2026-01-23}")
     private String model;
 
+    @Value("${qwen.temp-token-url:https://dashscope.aliyuncs.com/api/v1/tokens}")
+    private String tempTokenUrl;
+
+    @Value("${qwen.temp-token-ttl:1800}")
+    private int tempTokenTtlSeconds;
+
     @Value("${qwen.timeout-ms:12000}")
     private int timeoutMs;
 
+    @Value("${qwen.proxy-host:}")
+    private String proxyHost;
+
+    @Value("${qwen.proxy-port:0}")
+    private int proxyPort;
+
     private RestTemplate restTemplate;
+    private final Object tokenLock = new Object();
+    private volatile String tempToken;
+    private volatile long tempTokenExpiresAt;
 
     @PostConstruct
     public void init() {
         SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(timeoutMs);
         factory.setReadTimeout(timeoutMs);
+        if (StringUtils.hasText(proxyHost) && proxyPort > 0) {
+            factory.setProxy(new Proxy(Proxy.Type.HTTP, new InetSocketAddress(proxyHost.trim(), proxyPort)));
+        }
         this.restTemplate = new RestTemplate(factory);
     }
 
@@ -63,7 +84,7 @@ public class QwenChatService {
 
     public String chat(List<ChatMessage> messages) {
         if (!StringUtils.hasText(apiKey)) {
-            throw new IllegalStateException("Qwen API Key 未配置，请设置 QWEN_API_KEY 环境变量");
+            throw new IllegalStateException("Qwen API Key 未配置，请在 application-secrets.yml 或环境变量中设置");
         }
         List<Map<String, String>> qwenMessages = new ArrayList<>();
         qwenMessages.add(Map.of("role", "system", "content", SYSTEM_PROMPT));
@@ -80,6 +101,7 @@ public class QwenChatService {
             }
         }
 
+        String normalizedBaseUrl = normalizeUrl(baseUrl);
         Map<String, Object> payload = Map.of(
                 "model", model,
                 "messages", qwenMessages,
@@ -88,12 +110,18 @@ public class QwenChatService {
                 "stream", false
         );
 
+        String token = getTempToken();
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(apiKey);
+        headers.setBearerAuth(token);
 
         HttpEntity<Map<String, Object>> entity = new HttpEntity<>(payload, headers);
-        Map<?, ?> response = restTemplate.postForObject(baseUrl, entity, Map.class);
+        Map<?, ?> response;
+        try {
+            response = restTemplate.postForObject(normalizedBaseUrl, entity, Map.class);
+        } catch (ResourceAccessException ex) {
+            throw handleAccessException(ex, normalizedBaseUrl);
+        }
         if (response == null) {
             throw new IllegalStateException("模型返回为空");
         }
@@ -115,5 +143,89 @@ public class QwenChatService {
             throw new IllegalStateException("模型返回为空");
         }
         return content.trim();
+    }
+
+    private String getTempToken() {
+        long now = System.currentTimeMillis() / 1000;
+        if (StringUtils.hasText(tempToken) && tempTokenExpiresAt > now + 60) {
+            return tempToken;
+        }
+        synchronized (tokenLock) {
+            long current = System.currentTimeMillis() / 1000;
+            if (StringUtils.hasText(tempToken) && tempTokenExpiresAt > current + 60) {
+                return tempToken;
+            }
+            return fetchTempToken();
+        }
+    }
+
+    private String fetchTempToken() {
+        if (!StringUtils.hasText(apiKey)) {
+            throw new IllegalStateException("Qwen API Key 未配置，请在 application-secrets.yml 或环境变量中设置");
+        }
+        int ttl = tempTokenTtlSeconds;
+        if (ttl < 1) {
+            ttl = 1;
+        } else if (ttl > 1800) {
+            ttl = 1800;
+        }
+        String url = normalizeUrl(tempTokenUrl) + "?expire_in_seconds=" + ttl;
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_JSON);
+        headers.setBearerAuth(apiKey);
+        HttpEntity<String> entity = new HttpEntity<>("", headers);
+        Map<?, ?> response;
+        try {
+            response = restTemplate.postForObject(url, entity, Map.class);
+        } catch (ResourceAccessException ex) {
+            throw handleAccessException(ex, url);
+        }
+        if (response == null) {
+            throw new IllegalStateException("临时令牌返回为空");
+        }
+        Object tokenObj = response.get("token");
+        Object expiresObj = response.get("expires_at");
+        String newToken = tokenObj != null ? tokenObj.toString() : "";
+        long expiresAt = 0;
+        if (expiresObj instanceof Number number) {
+            expiresAt = number.longValue();
+        } else if (expiresObj != null) {
+            try {
+                expiresAt = Long.parseLong(expiresObj.toString());
+            } catch (NumberFormatException ignored) {
+                expiresAt = 0;
+            }
+        }
+        if (!StringUtils.hasText(newToken) || expiresAt <= 0) {
+            throw new IllegalStateException("临时令牌响应格式异常");
+        }
+        tempToken = newToken;
+        tempTokenExpiresAt = expiresAt;
+        return newToken;
+    }
+
+    private String normalizeUrl(String url) {
+        if (!StringUtils.hasText(url)) {
+            return "";
+        }
+        return url.trim();
+    }
+
+    private IllegalStateException handleAccessException(ResourceAccessException ex, String url) {
+        String proxyInfo = (StringUtils.hasText(proxyHost) && proxyPort > 0)
+                ? proxyHost.trim() + ":" + proxyPort
+                : "none";
+        Throwable cause = ex.getCause();
+        log.error("DashScope request failed. url={}, timeoutMs={}, proxy={}, message={}, cause={}",
+                url, timeoutMs, proxyInfo, ex.getMessage(), (cause != null ? cause.getClass().getName() : "null"), ex);
+        return handleAccessException(ex);
+    }
+
+    private IllegalStateException handleAccessException(ResourceAccessException ex) {
+        Throwable cause = ex.getCause();
+        if (cause instanceof java.net.UnknownHostException) {
+            return new IllegalStateException("无法解析 dashscope.aliyuncs.com，请检查网络、DNS 或代理设置");
+        }
+        return new IllegalStateException("无法连接到 DashScope，请检查网络或代理设置");
     }
 }

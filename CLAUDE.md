@@ -228,8 +228,6 @@ JWT tokens expire after 24 hours (86400 seconds). Users must re-authenticate aft
 
 ## Project Naming Convention
 
-The project was renamed from "medicine system" to "tourism system". Some references may still show "medicine" in:
-- Frontend package.json (name: "medicine_system")
-- Comments or legacy code
+The project name is **tourism system**. If you find legacy references to older template names in documentation or comments, update them to the tourism naming to keep consistency.
 
 Backend artifact ID is `tourism_rear` (intentionally "rear" not "rear-end" or "backend").
