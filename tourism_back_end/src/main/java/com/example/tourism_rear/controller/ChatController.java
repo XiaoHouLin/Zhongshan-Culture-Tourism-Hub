@@ -1,6 +1,7 @@
 package com.example.tourism_rear.controller;
 
 import com.example.tourism_rear.pack.utils.ChatMessage;
+import com.example.tourism_rear.pack.utils.ChatReply;
 import com.example.tourism_rear.pack.utils.ChatRequest;
 import com.example.tourism_rear.pack.utils.Result;
 import com.example.tourism_rear.service.QwenChatService;
@@ -46,9 +47,12 @@ public class ChatController {
             return Result.success(data);
         }
         try {
-            String reply = qwenChatService.chat(messages);
+            ChatReply reply = qwenChatService.chat(messages);
             Map<String, Object> data = new HashMap<>();
-            data.put("reply", reply);
+            data.put("reply", reply.getReply());
+            if (StringUtils.hasText(reply.getReasoning())) {
+                data.put("reasoning", reply.getReasoning());
+            }
             return Result.success(data);
         } catch (Exception e) {
             log.error("Qwen chat error: {}", e.getMessage(), e);

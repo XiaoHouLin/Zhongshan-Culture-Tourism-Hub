@@ -16,6 +16,7 @@ export default {
       visible: false,
       input: '',
       sending: false,
+      thinkingTimer: null,
       quickQuestions: [
         '中山必去景点有哪些？',
         '中山一日游路线推荐',
@@ -74,18 +75,57 @@ export default {
       this.messages.push({ role: 'user', content });
       this.scrollToBottom();
       this.sending = true;
+      const startAt = Date.now();
+      const thinkingItem = {
+        role: 'assistant',
+        type: 'thinking',
+        status: 'thinking',
+        durationMs: 0,
+        reasoning: '',
+        expanded: false
+      };
+      const clearThinkingTimer = () => {
+        if (this.thinkingTimer) {
+          clearInterval(this.thinkingTimer);
+          this.thinkingTimer = null;
+        }
+      };
       try {
         const payload = {
-          messages: this.messages.slice(-8).map(item => ({
-            role: item.role,
-            content: item.content
-          }))
+          messages: this.messages
+            .filter(item => item.type !== 'thinking')
+            .slice(-8)
+            .map(item => ({
+              role: item.role,
+              content: item.content
+            }))
         };
-        const res = await apiRear.post('/chat', payload, { skipAuth: true, skipAuthRedirect: true });
+        this.messages.push(thinkingItem);
+        this.scrollToBottom();
+        clearThinkingTimer();
+        this.thinkingTimer = setInterval(() => {
+          thinkingItem.durationMs = Date.now() - startAt;
+        }, 1000);
+        const res = await apiRear.post('/chat', payload, {
+          skipAuth: true,
+          skipAuthRedirect: true,
+          timeout: 120000
+        });
+        clearThinkingTimer();
+        thinkingItem.durationMs = Date.now() - startAt;
+        thinkingItem.status = 'done';
         if (res.data && res.data.code === 1) {
           const reply = res.data.data && res.data.data.reply ? res.data.data.reply : '暂时无法回答，请稍后再试。';
+          const reasoning = res.data.data && res.data.data.reasoning ? res.data.data.reasoning : '';
+          if (reasoning) {
+            thinkingItem.reasoning = reasoning;
+          }
           this.messages.push({ role: 'assistant', content: reply });
         } else {
+          const index = this.messages.indexOf(thinkingItem);
+          if (index >= 0) {
+            this.messages.splice(index, 1);
+          }
           const message = (res.data && res.data.message) || '暂时无法回答，请稍后再试。';
           this.messages.push({ role: 'assistant', content: message });
         }
@@ -94,6 +134,11 @@ export default {
           localStorage.setItem('guestChatCount', String(this.guestCount));
         }
       } catch (error) {
+        clearThinkingTimer();
+        const index = this.messages.indexOf(thinkingItem);
+        if (index >= 0) {
+          this.messages.splice(index, 1);
+        }
         this.messages.push({ role: 'assistant', content: '服务异常，请稍后再试。' });
       } finally {
         this.sending = false;
@@ -126,6 +171,22 @@ export default {
       this.$nextTick(() => {
         body.scrollTop = body.scrollHeight;
       });
+    },
+    toggleThinking(item) {
+      if (!item || !item.reasoning) {
+        return;
+      }
+      item.expanded = !item.expanded;
+      this.$nextTick(() => this.scrollToBottom());
+    },
+    formatDuration(ms) {
+      const totalSeconds = Math.max(0, Math.round((ms || 0) / 1000));
+      if (totalSeconds < 60) {
+        return `${totalSeconds}s`;
+      }
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return seconds ? `${minutes}m${seconds}s` : `${minutes}m`;
     }
   }
 };
@@ -141,7 +202,6 @@ export default {
       <div class="chat-header">
         <div class="chat-title">
           <span>中山文旅智能助理</span>
-          <small>仅回答中山市旅游相关问题</small>
         </div>
         <button class="chat-close" @click="toggleChat" aria-label="关闭聊天">×</button>
       </div>
@@ -160,24 +220,68 @@ export default {
           </div>
         </div>
         <div class="chat-body" ref="chatBody">
-          <div v-for="(item, index) in messages" :key="index" class="chat-row" :class="item.role">
-            <div class="chat-message">{{ item.content }}</div>
+          <div
+            v-for="(item, index) in messages"
+            :key="index"
+            class="chat-row"
+            :class="[item.role, { thinking: item.type === 'thinking' }]"
+          >
+            <template v-if="item.type === 'thinking'">
+              <div class="chat-thinking">
+                <span class="thinking-text">
+                  {{ item.status === 'thinking' ? '深度思考中...' : '深度思考完成' }}
+                </span>
+                <button
+                  class="thinking-toggle"
+                  :disabled="!item.reasoning"
+                  @click="toggleThinking(item)"
+                  aria-label="查看思考过程"
+                >
+                  <svg viewBox="0 0 24 24" aria-hidden="true" :class="{ expanded: item.expanded }">
+                    <path
+                      d="M6.7 9.3a1 1 0 011.4 0L12 13.2l3.9-3.9a1 1 0 111.4 1.4l-4.6 4.6a1 1 0 01-1.4 0L6.7 10.7a1 1 0 010-1.4z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                </button>
+                <span class="thinking-time">({{ formatDuration(item.durationMs) }})</span>
+              </div>
+              <div v-if="item.expanded && item.reasoning" class="thinking-panel">
+                {{ item.reasoning }}
+              </div>
+            </template>
+            <template v-else>
+              <div class="chat-message">{{ item.content }}</div>
+            </template>
           </div>
         </div>
-        <div v-if="!isLoggedIn" class="chat-limit">
-          游客剩余 {{ remainingCount }} 次，登录后不限。
-        </div>
+        <div v-if="!isLoggedIn" class="chat-limit">游客剩余 {{ remainingCount }} 次，登录后不限。</div>
         <div class="chat-input">
-          <el-input
-            v-model="input"
-            type="textarea"
-            :autosize="{ minRows: 2, maxRows: 4 }"
-            placeholder="请输入中山市旅游相关问题（Ctrl+Enter 发送）"
-            maxlength="200"
-            clearable
-            @keydown.native="handleKeydown"
-          ></el-input>
-          <el-button type="primary" :loading="sending" @click="sendMessage">发送</el-button>
+          <div class="chat-input-main">
+            <el-input
+              v-model="input"
+              type="textarea"
+              :autosize="{ minRows: 1, maxRows: 4 }"
+              placeholder="请输入您想咨询的内容..."
+              maxlength="50"
+              clearable
+              @keydown.native="handleKeydown"
+            ></el-input>
+            <button
+              class="chat-send"
+              :disabled="sending || !input.trim()"
+              @click="sendMessage"
+              aria-label="发送"
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M12 4l6 6-1.4 1.4L13 7.8V20h-2V7.8L7.4 11.4 6 10z"
+                  fill="currentColor"
+                />
+              </svg>
+            </button>
+          </div>
+          <div class="chat-input-hint">内容由 AI 生成，仅供参考</div>
         </div>
       </div>
     </div>
@@ -261,11 +365,6 @@ export default {
   font-weight: 600;
 }
 
-.chat-title small {
-  font-size: 12px;
-  opacity: 0.85;
-}
-
 .chat-close {
   border: none;
   background: rgba(255, 255, 255, 0.2);
@@ -310,6 +409,12 @@ export default {
   justify-content: flex-end;
 }
 
+.chat-row.thinking {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
 .chat-message {
   max-width: 240px;
   padding: 10px 12px;
@@ -324,6 +429,62 @@ export default {
 .chat-row.user .chat-message {
   background: #1f7a6d;
   color: #ffffff;
+}
+
+.chat-thinking {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #6c7a74;
+}
+
+.thinking-text {
+  font-weight: 500;
+}
+
+.thinking-toggle {
+  border: none;
+  background: rgba(31, 56, 94, 0.08);
+  color: #52615c;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+}
+
+.thinking-toggle svg {
+  width: 14px;
+  height: 14px;
+  transition: transform 0.2s ease;
+}
+
+.thinking-toggle svg.expanded {
+  transform: rotate(180deg);
+}
+
+.thinking-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.thinking-time {
+  color: #8a9691;
+}
+
+.thinking-panel {
+  background: #f2f4f3;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: #3b4742;
+  white-space: pre-wrap;
+  box-shadow: inset 0 0 0 1px rgba(31, 56, 94, 0.06);
 }
 
 .chat-limit {
@@ -363,13 +524,13 @@ export default {
 }
 
 .chat-input {
-  display: grid;
-  grid-template-columns: 1fr 84px;
-  gap: 8px;
-  align-items: end;
-  background: #f6f8f7;
-  border-radius: 12px;
-  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.chat-input-main {
+  position: relative;
 }
 
 .chat-input ::v-deep .el-textarea__inner {
@@ -377,10 +538,49 @@ export default {
   border: 1px solid rgba(31, 56, 94, 0.12);
   font-size: 13px;
   line-height: 1.6;
+  padding: 10px 54px 10px 14px;
+  min-height: 44px;
+  resize: none;
+  background: #ffffff;
 }
 
 .chat-input ::v-deep .el-textarea__inner:focus {
   border-color: #1f7a6d;
+}
+
+.chat-send {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 36px;
+  height: 32px;
+  border: none;
+  border-radius: 10px;
+  background: #1f7a6d;
+  color: #ffffff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 16px rgba(31, 56, 94, 0.16);
+}
+
+.chat-send svg {
+  width: 16px;
+  height: 16px;
+}
+
+.chat-send:disabled {
+  background: #9fb3ac;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.chat-input-hint {
+  font-size: 11px;
+  color: #97a39d;
+  padding-left: 4px;
 }
 
 @media (max-width: 768px) {

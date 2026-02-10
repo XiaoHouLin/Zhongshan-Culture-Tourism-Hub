@@ -1,21 +1,23 @@
 package com.example.tourism_rear.service;
 
 import com.example.tourism_rear.pack.utils.ChatMessage;
+import com.example.tourism_rear.pack.utils.ChatReply;
 import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.client.ResourceAccessException;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.RestTemplate;
 
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.regex.Pattern;
@@ -24,10 +26,11 @@ import java.util.regex.Pattern;
 @Service
 public class QwenChatService {
     private static final Pattern TOPIC_PATTERN = Pattern.compile(
-            "(中山市|中山|香山|Zhongshan|孙中山|岐江|孙文西路|古镇|小榄|五桂山|石岐|詹园|紫马岭|翠亨|南朗|菊花会|灯饰|侨乡)");
+            "(中山市|中山|香山|Zhongshan|孙中山故居|孙文西路|古镇|小榄|五桂山|石岐|岐江|紫马岭|南朗|菊花会|灯饰|侨乡)"
+    );
     private static final String SYSTEM_PROMPT =
-            "你是中山市旅游助手，只回答与中山市旅游相关的问题。"
-                    + "如果用户问题与中山市旅游无关，请礼貌拒绝，并提示只能回答中山市旅游内容。";
+            "你是中山市文旅智能助理，只回答与中山市旅游相关的问题。"
+                    + "如果用户问题与中山市旅游无关，请礼貌拒绝，并提示只回答中山市旅游内容。";
 
     @Value("${qwen.api-key:}")
     private String apiKey;
@@ -43,6 +46,9 @@ public class QwenChatService {
 
     @Value("${qwen.temp-token-ttl:1800}")
     private int tempTokenTtlSeconds;
+
+    @Value("${qwen.enable-thinking:true}")
+    private boolean enableThinking;
 
     @Value("${qwen.timeout-ms:12000}")
     private int timeoutMs;
@@ -82,7 +88,7 @@ public class QwenChatService {
         return TOPIC_PATTERN.matcher(builder.toString()).find();
     }
 
-    public String chat(List<ChatMessage> messages) {
+    public ChatReply chat(List<ChatMessage> messages) {
         if (!StringUtils.hasText(apiKey)) {
             throw new IllegalStateException("Qwen API Key 未配置，请在 application-secrets.yml 或环境变量中设置");
         }
@@ -102,13 +108,15 @@ public class QwenChatService {
         }
 
         String normalizedBaseUrl = normalizeUrl(baseUrl);
-        Map<String, Object> payload = Map.of(
-                "model", model,
-                "messages", qwenMessages,
-                "temperature", 0.6,
-                "top_p", 0.9,
-                "stream", false
-        );
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("model", model);
+        payload.put("messages", qwenMessages);
+        payload.put("temperature", 0.6);
+        payload.put("top_p", 0.9);
+        payload.put("stream", false);
+        if (enableThinking) {
+            payload.put("enable_thinking", true);
+        }
 
         String token = getTempToken();
         HttpHeaders headers = new HttpHeaders();
@@ -142,7 +150,13 @@ public class QwenChatService {
         if (!StringUtils.hasText(content)) {
             throw new IllegalStateException("模型返回为空");
         }
-        return content.trim();
+        Object reasoningObj = messageMap.get("reasoning_content");
+        if (reasoningObj == null) {
+            reasoningObj = messageMap.get("reasoning");
+        }
+        String reasoning = reasoningObj != null ? reasoningObj.toString() : "";
+        String trimmedReasoning = StringUtils.hasText(reasoning) ? reasoning.trim() : "";
+        return new ChatReply(content.trim(), trimmedReasoning);
     }
 
     private String getTempToken() {
@@ -218,6 +232,11 @@ public class QwenChatService {
         Throwable cause = ex.getCause();
         log.error("DashScope request failed. url={}, timeoutMs={}, proxy={}, message={}, cause={}",
                 url, timeoutMs, proxyInfo, ex.getMessage(), (cause != null ? cause.getClass().getName() : "null"), ex);
+        System.err.println("DashScope request failed. url=" + url
+                + ", timeoutMs=" + timeoutMs
+                + ", proxy=" + proxyInfo
+                + ", message=" + ex.getMessage()
+                + ", cause=" + (cause != null ? cause.getClass().getName() : "null"));
         return handleAccessException(ex);
     }
 
