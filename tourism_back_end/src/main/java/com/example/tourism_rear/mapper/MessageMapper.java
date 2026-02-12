@@ -2,6 +2,7 @@ package com.example.tourism_rear.mapper;
 
 import com.example.tourism_rear.pack.utils.MessageNotice;
 import org.apache.ibatis.annotations.Mapper;
+import org.apache.ibatis.annotations.Delete;
 import org.apache.ibatis.annotations.Param;
 
 import java.util.List;
@@ -15,6 +16,9 @@ public interface MessageMapper {
     int markRead(@Param("uid") Integer uid, @Param("id") Long id);
 
     int deleteMessage(@Param("uid") Integer uid, @Param("id") Long id);
+
+    @Delete("DELETE FROM message_center WHERE uid = #{uid}")
+    int deleteByUid(@Param("uid") Integer uid);
 
     int countByTypeAndRef(@Param("uid") Integer uid,
                           @Param("messageType") String messageType,

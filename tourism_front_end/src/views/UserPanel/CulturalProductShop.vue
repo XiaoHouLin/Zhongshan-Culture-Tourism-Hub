@@ -30,6 +30,7 @@ export default {
       maxPrice: 0,
       cartTotal: 0,
       shoppingCart: [],
+      cartProductMap: {},
       shoppingDrawer: false,
       direction: 'rtl',//right to left
       maxAvailableStock: 0,
@@ -53,7 +54,8 @@ export default {
         minPrice: null,
         maxPrice: null,
         minStock: null,
-        maxStock: null
+        maxStock: null,
+        exactMatch: false
       },
       monthlyPurchaseCache: {},
       classifyButtons: [
@@ -83,12 +85,16 @@ export default {
         {key: 'trend', label: '✨时下流行'},
         {key: 'latest', label: '🆕最新商品'},
         {key: 'history', label: '🧾历史购买', requiresLogin: true},
-        {key: 'recommend', label: '🎯为你推荐', requiresLogin: true}
+        {key: 'recommend', label: '🎯为你推荐', requiresLogin: true},
+        {key: 'favorites', label: '⭐我的收藏', requiresLogin: true}
       ],
       activeQuickFilter: 'hot',
       trendSelection: [],
       historyProductCodes: [],
       historyCategories: [],
+      favorites: [],
+      favoriteProducts: [],
+      favoritesLoading: false,
       travelEmojis: [
         {emoji: '🏞️', label: '山水自然'},
         {emoji: '🏛️', label: '人文历史'},
@@ -96,11 +102,15 @@ export default {
         {emoji: '🌃', label: '夜游城市'}
       ],
       activeTravelEmoji: '🏞️',
-      selectedProductIsOffline: false
+      selectedProductIsOffline: false,
+      realtimeRefreshTimer: null,
+      realtimeHandler: null
     };
   },
   created() {
+    this.loadFavorites();
     this.loadItems();
+    this.initRealtimeRefresh();
     if (this.isLoggedIn) {
       this.getShoppingCart();
       this.loadOrderHistory();
@@ -140,6 +150,8 @@ export default {
           return data.sort((a, b) => normalizeNumber(b.sales) - normalizeNumber(a.sales));
         case 'trend':
           return data.filter(item => this.trendSelection.includes(item.productCode));
+        case 'favorites':
+          return this.favoriteProducts;
         case 'latest':
           return data.sort((a, b) => {
             const aTime = a.createTime ? new Date(a.createTime).getTime() : 0;
@@ -174,17 +186,52 @@ export default {
       return this.tableData[Number(this.productIndex)] || null;
     },
     cartItemsDetailed() {
+      const hasCartMap = Object.keys(this.cartProductMap || {}).length > 0;
       return this.shoppingCart.map((item, index) => {
-        const matched = this.tableDataWithImages.find(product => product.productCode === item.productCode);
+        const mapped = this.cartProductMap ? this.cartProductMap[item.productCode] : null;
+        const matched = mapped || this.tableDataWithImages.find(product => product.productCode === item.productCode);
+        const isMissing = hasCartMap && !mapped;
+        const stockValue = matched && typeof matched.stock !== 'undefined' ? Number(matched.stock) : null;
+        const desiredQty = Number(item.purchaseNum);
+        const stockInvalid = stockValue !== null && Number.isFinite(desiredQty) && desiredQty > stockValue;
+        const invalidReason = isMissing ? '商品不存在或已下架' : (stockInvalid ? '库存不足' : '');
+        const resolvedImage = matched && matched.imageUrl ? matched.imageUrl : this.resolveProductImage(item.productCode, index);
         return {
           ...item,
-          imageUrl: matched ? matched.imageUrl : this.resolveProductImage(item.productCode, index),
-          stock: matched && typeof matched.stock !== 'undefined' ? matched.stock : null
+          imageUrl: resolvedImage,
+          stock: matched && typeof matched.stock !== 'undefined' ? matched.stock : null,
+          isInvalid: Boolean(invalidReason),
+          invalidReason
         };
       });
     }
   },
   methods: {
+    initRealtimeRefresh() {
+      if (!this.$eventBus) {
+        return;
+      }
+      this.realtimeHandler = (payload = {}) => {
+        if (this.realtimeRefreshTimer) {
+          return;
+        }
+        const currentUid = this.getUidFromToken();
+        if (payload && payload.uid && currentUid && String(payload.uid) !== String(currentUid)) {
+          return;
+        }
+        this.realtimeRefreshTimer = setTimeout(() => {
+          this.realtimeRefreshTimer = null;
+          this.loadItems();
+          if (this.isLoggedIn) {
+            this.getUserInfo();
+            this.loadOrderHistory();
+            this.getShoppingCart();
+          }
+        }, 600);
+      };
+      this.$eventBus.$on('realtime:global-refresh', this.realtimeHandler);
+      this.$eventBus.$on('realtime:order-updated', this.realtimeHandler);
+    },
     resolveProductImage(productCode) {
       if (productCode && productImages[productCode]) {
         return productImages[productCode];
@@ -217,9 +264,81 @@ export default {
         const source = this.tableData.slice();
         const shuffled = source.sort(() => Math.random() - 0.5);
         this.trendSelection = shuffled.slice(0, Math.min(9, shuffled.length)).map(item => item.productCode);
+      } else if (filter.key === 'favorites') {
+        this.loadFavoriteProducts();
       } else {
         this.trendSelection = [];
       }
+    },
+    getFavoritesKey() {
+      const uid = this.getUidFromToken();
+      return uid ? `favorites_${uid}` : 'favorites_guest';
+    },
+    loadFavorites() {
+      const key = this.getFavoritesKey();
+      try {
+        const raw = localStorage.getItem(key);
+        const parsed = raw ? JSON.parse(raw) : [];
+        this.favorites = Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        this.favorites = [];
+      }
+      if (this.activeQuickFilter === 'favorites') {
+        this.loadFavoriteProducts();
+      }
+    },
+    persistFavorites() {
+      const key = this.getFavoritesKey();
+      localStorage.setItem(key, JSON.stringify(this.favorites));
+    },
+    isFavorite(productCode) {
+      return Boolean(productCode) && this.favorites.includes(productCode);
+    },
+    toggleFavorite(itemOrCode) {
+      if (!this.isLoggedIn) {
+        this.requireLogin('收藏');
+        return;
+      }
+      const code = typeof itemOrCode === 'string' ? itemOrCode : itemOrCode && itemOrCode.productCode;
+      if (!code) {
+        return;
+      }
+      const index = this.favorites.indexOf(code);
+      if (index > -1) {
+        this.favorites.splice(index, 1);
+        this.$message.success('已取消收藏');
+      } else {
+        this.favorites.push(code);
+        this.$message.success('已加入收藏');
+      }
+      this.persistFavorites();
+      if (this.activeQuickFilter === 'favorites') {
+        this.loadFavoriteProducts();
+      }
+    },
+    async loadFavoriteProducts() {
+      if (!this.favorites.length) {
+        this.favoriteProducts = [];
+        return;
+      }
+      this.favoritesLoading = true;
+      const codes = Array.from(new Set(this.favorites));
+      const results = await Promise.all(
+        codes.map(async code => {
+          try {
+            const res = await apiRear.get(`/cultural-products/${code}`);
+            return res && res.data ? res.data.data : null;
+          } catch (error) {
+            return null;
+          }
+        })
+      );
+      const valid = results.filter(Boolean);
+      const validCodes = new Set(valid.map(item => item.productCode));
+      this.favorites = codes.filter(code => validCodes.has(code));
+      this.persistFavorites();
+      this.favoriteProducts = valid;
+      this.favoritesLoading = false;
     },
     async loadOrderHistory() {
       if (!this.isLoggedIn) {
@@ -300,7 +419,7 @@ export default {
         }
         return;
       }
-      if (!this.validateCartBeforeCheckout()) {
+      if (!(await this.validateCartBeforeCheckout())) {
         return;
       }
       this.loading = true;
@@ -450,6 +569,7 @@ export default {
               this.cartTotal = info.data.data.totalPrice;
               apiRear.get(`/order/getOrderByOrderId=${this.orderId}`).then(res => {
                 this.shoppingCart = res.data.data;
+                this.refreshCartProductMap();
               })
             }
           })
@@ -457,6 +577,34 @@ export default {
       } catch (err) {
         this.$message.error('无法获取购物车数据！');
       }
+    },
+    async refreshCartProductMap() {
+      const cart = this.shoppingCart || [];
+      if (!cart.length) {
+        this.cartProductMap = {};
+        return;
+      }
+      const entries = await Promise.all(
+        cart.map(async item => {
+          const code = item.productCode;
+          if (!code) {
+            return [code, null];
+          }
+          try {
+            const res = await apiRear.get(`/cultural-products/${code}`);
+            const product = res && res.data ? res.data.data : null;
+            return [code, product || null];
+          } catch (error) {
+            return [code, null];
+          }
+        })
+      );
+      this.cartProductMap = entries.reduce((acc, [code, product]) => {
+        if (code) {
+          acc[code] = product;
+        }
+        return acc;
+      }, {});
     },
     handlePageChange(newPage) {
       this.loading = true;
@@ -475,12 +623,42 @@ export default {
       if (index < 0) {
         return;
       }
-      this.purchaseDialogVisible = true;
-      this.purchaseQuantity = 0;
-      this.currentProductTotal = '0.00';
-      this.maxAvailableStock = this.tableData[index].stock;
-      this.selectedProductIsOffline = this.isOfflineProduct(this.tableData[index]);
-      this.productIndex = index;
+      this.ensureProductAvailable(item.productCode, 1).then(product => {
+        if (!product) {
+          return;
+        }
+        this.purchaseDialogVisible = true;
+        this.purchaseQuantity = 0;
+        this.currentProductTotal = '0.00';
+        this.maxAvailableStock = product.stock;
+        this.selectedProductIsOffline = this.isOfflineProduct(product);
+        this.productIndex = index;
+      });
+      return;
+    },
+    async ensureProductAvailable(productCode, desiredQty) {
+      if (!productCode) {
+        this.$message.error('商品不存在或已下架');
+        return null;
+      }
+      try {
+        const res = await apiRear.get(`/cultural-products/${productCode}`);
+        const product = res && res.data ? res.data.data : null;
+        if (!product) {
+          this.$message.error('商品不存在或已下架');
+          return null;
+        }
+        const stockValue = Number(product.stock);
+        const desired = Number(desiredQty);
+        if (Number.isFinite(stockValue) && Number.isFinite(desired) && desired > stockValue) {
+          this.$message.error('库存不足');
+          return null;
+        }
+        return product;
+      } catch (error) {
+        this.$message.error('商品不存在或已下架');
+        return null;
+      }
     },
     async purchaseHandle() {
       if (!this.isLoggedIn) {
@@ -498,6 +676,12 @@ export default {
       const purchasedProducts = this.shoppingCart.find(item => item.productCode === productCode);
       const currentInCart = purchasedProducts ? purchasedProducts.purchaseNum : 0;
       const desiredTotal = currentInCart + this.purchaseQuantity;
+      const latestProduct = await this.ensureProductAvailable(productCode, desiredTotal);
+      if (!latestProduct) {
+        await this.refreshCartProductMap();
+        return;
+      }
+      this.maxAvailableStock = latestProduct.stock;
       const withinLimit = await this.checkMonthlyLimit(productCode, desiredTotal);
       if (!withinLimit) {
         return;
@@ -508,12 +692,13 @@ export default {
           this.$message.error('购买数量不能大于剩余数量');
           return;
         } else {
-          this.shoppingCart[this.shoppingCart.indexOf(purchasedProducts)].purchaseNum += this.purchaseQuantity;
-          this.updateCartTotal();
-          localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
-          this.purchaseDialogVisible = false;
-          return;
-        }
+        this.shoppingCart[this.shoppingCart.indexOf(purchasedProducts)].purchaseNum += this.purchaseQuantity;
+        this.updateCartTotal();
+        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+        await this.refreshCartProductMap();
+        this.purchaseDialogVisible = false;
+        return;
+      }
       }
       this.selectedProduct.productCode = this.tableData[this.productIndex].productCode;
       this.selectedProduct.purchaseNum = this.purchaseQuantity;
@@ -524,6 +709,7 @@ export default {
       this.cartTotal = 0;
       this.updateCartTotal();
       localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+      await this.refreshCartProductMap();
       this.purchaseDialogVisible = false;
     },
     updateCurrentProductTotal() {
@@ -563,13 +749,18 @@ export default {
       this.$set(this.monthlyPurchaseCache, productCode, count);
       return count;
     },
-    updateCartQuantity(item, value) {
+    async updateCartQuantity(item, value) {
       if (!this.isLoggedIn) {
         this.requireLogin('管理购物车');
         return;
       }
       const quantity = Number(value);
-      const stock = this.getCartStock(item.productCode);
+      const latestProduct = await this.ensureProductAvailable(item.productCode, quantity);
+      if (!latestProduct) {
+        await this.refreshCartProductMap();
+        return;
+      }
+      const stock = latestProduct.stock;
       if (!this.isValidQuantity(quantity, stock)) {
         return;
       }
@@ -577,14 +768,14 @@ export default {
       if (!target) {
         return;
       }
-      this.checkMonthlyLimit(item.productCode, quantity).then(valid => {
-        if (!valid) {
-          return;
-        }
-        target.purchaseNum = quantity;
-        this.updateCartTotal();
-        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
-      });
+      const valid = await this.checkMonthlyLimit(item.productCode, quantity);
+      if (!valid) {
+        return;
+      }
+      target.purchaseNum = quantity;
+      this.updateCartTotal();
+      localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+      await this.refreshCartProductMap();
     },
     getCartStock(productCode) {
       const product = this.tableDataWithImages.find(item => item.productCode === productCode);
@@ -624,24 +815,29 @@ export default {
         inputPattern: /^\d+$/,
         inputErrorMessage: '请输入正整数',
         closeOnClickModal: false
-      }).then(({value}) => {
+      }).then(async ({value}) => {
         const purchasedDrug = this.shoppingCart.find(item => item.productCode === productCode);
-        const stock = this.getCartStock(productCode);
         const quantity = Number(value);
+        const latestProduct = await this.ensureProductAvailable(productCode, quantity);
+        if (!latestProduct) {
+          await this.refreshCartProductMap();
+          return;
+        }
+        const stock = latestProduct.stock;
         if (!this.isValidQuantity(quantity, stock)) {
           return;
         }
-        this.checkMonthlyLimit(productCode, quantity).then(valid => {
-          if (!valid) {
-            return;
-          }
-          purchasedDrug.purchaseNum = quantity;
-          this.updateCartTotal();
-          localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
-          this.$message({
-            type: 'success',
-            message: '『' + productName + '』' + '数量已修改为：' + quantity
-          });
+        const valid = await this.checkMonthlyLimit(productCode, quantity);
+        if (!valid) {
+          return;
+        }
+        purchasedDrug.purchaseNum = quantity;
+        this.updateCartTotal();
+        localStorage.setItem('shoppingCart', JSON.stringify(this.shoppingCart));
+        await this.refreshCartProductMap();
+        this.$message({
+          type: 'success',
+          message: '『' + productName + '』' + '数量已修改为：' + quantity
         });
       }).catch(() => {
         this.$message({
@@ -656,17 +852,21 @@ export default {
         return;
       }
       this.shoppingDrawer = true;
+      this.refreshCartProductMap();
     },
-    validateCartBeforeCheckout() {
+    async validateCartBeforeCheckout() {
       for (const item of this.shoppingCart) {
-        const stock = this.getCartStock(item.productCode);
-        const product = this.tableData.find(productItem => productItem.productCode === item.productCode);
-        if (product && this.isOfflineProduct(product)) {
+        const quantity = Number(item.purchaseNum);
+        const latestProduct = await this.ensureProductAvailable(item.productCode, quantity);
+        if (!latestProduct) {
+          await this.refreshCartProductMap();
+          return false;
+        }
+        if (this.isOfflineProduct(latestProduct)) {
           this.$message.error('门店限定商品无法在线购买');
           return false;
         }
-        const quantity = Number(item.purchaseNum);
-        if (!this.isValidQuantity(quantity, stock)) {
+        if (!this.isValidQuantity(quantity, latestProduct.stock)) {
           return false;
         }
       }
@@ -716,6 +916,16 @@ export default {
       return true;
     }
   },
+  beforeDestroy() {
+    if (this.realtimeHandler && this.$eventBus) {
+      this.$eventBus.$off('realtime:global-refresh', this.realtimeHandler);
+      this.$eventBus.$off('realtime:order-updated', this.realtimeHandler);
+    }
+    if (this.realtimeRefreshTimer) {
+      clearTimeout(this.realtimeRefreshTimer);
+      this.realtimeRefreshTimer = null;
+    }
+  }
 };
 </script>
 
@@ -739,6 +949,14 @@ export default {
                 ></el-button>
               </el-input>
             </div>
+            <el-tooltip content="区分大小写，完全匹配" placement="bottom">
+              <el-button :type="search.exactMatch ? 'primary' : 'info'"
+                         class="exact-match-btn"
+                         size="mini"
+                         @click="search.exactMatch = !search.exactMatch">
+                精确{{ search.exactMatch ? '开' : '关' }}
+              </el-button>
+            </el-tooltip>
             <el-button type="primary"
                        class="refresh-button"
                        @click="()=>{handle_loadItems();this.search.productName = '';}"
@@ -819,7 +1037,18 @@ export default {
             </div>
             <div class="detail-info">
               <p class="detail-eyebrow">中山文创 · 产品详情</p>
-              <h3 class="detail-title">{{ activeProduct ? activeProduct.productName : '未找到对应文创产品信息' }}</h3>
+              <div class="detail-title-row">
+                <h3 class="detail-title">{{ activeProduct ? activeProduct.productName : '未找到对应文创产品信息' }}</h3>
+                <el-button
+                  class="favorite-btn detail-favorite-btn"
+                  type="text"
+                  :disabled="!activeProduct"
+                  :class="{ active: isFavorite(activeProduct && activeProduct.productCode) }"
+                  @click="toggleFavorite(activeProduct && activeProduct.productCode)"
+                >
+                  <i :class="isFavorite(activeProduct && activeProduct.productCode) ? 'el-icon-star-on' : 'el-icon-star-off'"></i>
+                </el-button>
+              </div>
               <p class="detail-code">编号：{{ activeProduct ? activeProduct.productCode : '--' }}</p>
               <p class="detail-highlight">
                 {{ activeProduct ? activeProduct.highlight : '暂无产品亮点说明' }}
@@ -860,7 +1089,6 @@ export default {
           <div class="cart-drawer">
             <div class="cart-header">
               <div>
-                <h3>购物车</h3>
                 <p>共 {{ shoppingCart.length }} 件商品</p>
               </div>
               <el-button type="text" class="clear-cart-btn" @click="clearCart">一键清空</el-button>
@@ -871,7 +1099,7 @@ export default {
                 v-for="item in cartItemsDetailed"
                 :key="item.productCode"
                 shadow="hover"
-                class="cart-item-card"
+                :class="['cart-item-card', { 'cart-item-card--invalid': item.isInvalid }]"
               >
                 <div class="cart-item">
                   <img :src="item.imageUrl" :alt="item.productName" class="cart-item-image" />
@@ -879,10 +1107,12 @@ export default {
                     <div class="cart-item-title">
                       <span>{{ item.productName }}</span>
                       <span class="cart-item-code">编号 {{ item.productCode }}</span>
+                      <span v-if="item.isInvalid" class="cart-item-invalid">已失效</span>
                     </div>
                     <div class="cart-item-meta">
                       <span>单价：￥{{ Number(item.price).toFixed(2) }}</span>
                       <span v-if="item.stock !== null">库存：{{ item.stock }}</span>
+                      <span v-if="item.isInvalid" class="cart-item-invalid-reason">{{ item.invalidReason }}</span>
                     </div>
                     <div class="cart-item-actions">
                       <el-input-number
@@ -892,6 +1122,7 @@ export default {
                         :precision="0"
                         :value="Number(item.purchaseNum)"
                         size="mini"
+                        :disabled="item.isInvalid"
                         @change="value => updateCartQuantity(item, value)"
                       ></el-input-number>
                       <div class="cart-item-subtotal">
@@ -956,12 +1187,22 @@ export default {
                         <el-tag v-if="item.stock <= 0" class="strong" type="danger" effect="dark">已售罄
                         </el-tag>
                       </div>
-                      <div style="display: flex;justify-content: space-between">
+                      <div class="card-actions">
                         <h1 class="strong" style="margin-bottom: 5px; color: #409EFF">￥ {{ item.price }}</h1>
-                        <el-button type="primary" icon="el-icon-shopping-cart-2" size="mini"
-                                   :disabled="item.stock <= 0"
-                                   round style="font-size: 20px" @click="handleAddToCart(item)">
-                        </el-button>
+                        <div class="card-action-buttons">
+                          <el-button
+                            class="favorite-btn"
+                            type="text"
+                            :class="{ active: isFavorite(item.productCode) }"
+                            @click="toggleFavorite(item)"
+                          >
+                            <i :class="isFavorite(item.productCode) ? 'el-icon-star-on' : 'el-icon-star-off'"></i>
+                          </el-button>
+                          <el-button type="primary" icon="el-icon-shopping-cart-2" size="mini"
+                                     :disabled="item.stock <= 0"
+                                     round style="font-size: 20px" @click="handleAddToCart(item)">
+                          </el-button>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1175,6 +1416,12 @@ export default {
   gap: 12px;
 }
 
+.detail-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .detail-eyebrow {
   font-size: 12px;
   letter-spacing: 0.26em;
@@ -1188,6 +1435,22 @@ export default {
   font-weight: 700;
   margin: 0;
   color: var(--ink);
+}
+
+.favorite-btn {
+  padding: 2px 6px;
+  font-size: 26px;
+  line-height: 1;
+  color: rgba(64, 54, 44, 0.45);
+}
+
+.favorite-btn.active,
+.favorite-btn:hover {
+  color: #f5a623;
+}
+
+.detail-favorite-btn {
+  margin-top: -2px;
 }
 
 .detail-code {
@@ -1234,6 +1497,11 @@ export default {
 .refresh-button {
   margin-left: 10px;
   border-radius: 15px;
+}
+
+.exact-match-btn {
+  margin-left: 10px;
+  border-radius: 14px;
 }
 
 .shop-layout :deep(.el-button--primary) {
@@ -1362,6 +1630,19 @@ export default {
   margin: 20px;
   border-radius: 20px;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+}
+
+.card-action-buttons {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
 .card:hover {
@@ -1503,6 +1784,12 @@ export default {
   margin-bottom: 14px;
 }
 
+.cart-item-card--invalid {
+  opacity: 0.6;
+  filter: grayscale(0.7);
+  background: rgba(245, 245, 245, 0.8);
+}
+
 .cart-item {
   display: flex;
   gap: 16px;
@@ -1527,9 +1814,9 @@ export default {
 .cart-item-title {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 10px;
   font-weight: 600;
+  flex-wrap: wrap;
 }
 
 .cart-item-meta {
@@ -1538,6 +1825,22 @@ export default {
   gap: 12px;
   color: var(--ink-soft);
   font-size: 13px;
+}
+
+.cart-item-invalid {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 120, 120, 0.15);
+  color: #7a7a7a;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.cart-item-invalid-reason {
+  color: #a14a4a;
+  font-weight: 600;
 }
 
 .cart-item-actions {
@@ -1625,8 +1928,7 @@ export default {
 }
 
 .shop-top-card,
-.shop-quick-filters,
-.card {
+.shop-quick-filters {
   animation: fadeUp 0.6s ease both;
 }
 

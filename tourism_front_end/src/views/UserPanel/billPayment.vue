@@ -3,6 +3,13 @@ import {apiRear} from "@/axios";
 import {jwtDecode} from "jwt-decode";
 
 const AMAP_SCRIPT_ID = 'amap-js-sdk';
+const productImageContext = require.context('@/assets/culturalProducts', false, /\.png$/);
+const productImages = productImageContext.keys().reduce((acc, key) => {
+  const fileName = key.replace('./', '').replace(/\.png$/, '');
+  acc[fileName] = productImageContext(key);
+  return acc;
+}, {});
+const fallbackImage = productImages['1'];
 
 export default {
   name: 'BillPayment',
@@ -37,12 +44,16 @@ export default {
       rechargeDialogVisible: false,
       rechargeTitle: '',
       rechargeImage: '',
+      rechargeZfbImage: require('@/assets/pay/zfb_qr.jpg'),
+      rechargeWechatImage: require('@/assets/pay/wechat_qr.jpg'),
       remainingSeconds: 0,
       countdownTimer: null,
       orderClosed: false,
       showCountdown: true,
       paymentSucceeded: false,
       pendingNoticeSent: false,
+      realtimeHandler: null,
+      invalidOrderItems: [],
       amapKey:
         (typeof window !== 'undefined' && window.AMAP_KEY) ||
         process.env.VUE_APP_AMAP_KEY ||
@@ -58,10 +69,14 @@ export default {
     const parsed = target ? Number(target) : null;
     this.targetOrderId = Number.isFinite(parsed) ? parsed : null;
     this.getShoppingCart();
+    this.initRealtimeRefresh();
   },
   computed: {
+    hasInvalidItems() {
+      return this.invalidOrderItems && this.invalidOrderItems.length > 0;
+    },
     isBillInvalid() {
-      return !this.userInfo.cphone || this.orderClosed;
+      return !this.userInfo.cphone || this.orderClosed || this.hasInvalidItems;
     },
     countdownText() {
       if (this.orderClosed) {
@@ -73,6 +88,20 @@ export default {
     }
   },
   methods: {
+    initRealtimeRefresh() {
+      if (!this.$eventBus) {
+        return;
+      }
+      this.realtimeHandler = (payload = {}) => {
+        const currentUid = this.userInfo && this.userInfo.uid;
+        if (payload && payload.uid && currentUid && String(payload.uid) !== String(currentUid)) {
+          return;
+        }
+        this.checkInvalidOrderItems();
+      };
+      this.$eventBus.$on('realtime:global-refresh', this.realtimeHandler);
+      this.$eventBus.$on('realtime:order-updated', this.realtimeHandler);
+    },
     async getUserInfo() {
       try {
         this.userInfo.uid = jwtDecode(sessionStorage.getItem('token') || '').uid;
@@ -102,6 +131,7 @@ export default {
               this.initPaymentCountdown(remaining);
               const res = await apiRear.get(`/order/getOrderByOrderId=${this.orderId}`);
               this.shoppingCart = res.data.data;
+              await this.checkInvalidOrderItems();
             } else {
               this.$message.error('没有找到未支付的订单');
               this.$router.push('/userPanel/culturalProducts');
@@ -146,6 +176,55 @@ export default {
       }
       const res = await apiRear.get(`/order/getOrderByOrderId=${target.orderId}`);
       this.shoppingCart = res.data.data || [];
+      await this.checkInvalidOrderItems();
+    },
+    async checkInvalidOrderItems() {
+      const cart = this.shoppingCart || [];
+      if (!cart.length) {
+        this.invalidOrderItems = [];
+        return;
+      }
+      const invalid = [];
+      for (const item of cart) {
+        const code = item.productCode;
+        if (!code) {
+          invalid.push({productCode: code, reason: '商品不存在'});
+          continue;
+        }
+        try {
+          const res = await apiRear.get(`/cultural-products/${code}`);
+          const product = res && res.data ? res.data.data : null;
+          if (!product) {
+            invalid.push({productCode: code, reason: '商品不存在'});
+            continue;
+          }
+          const stock = Number(product.stock);
+          const desired = Number(item.purchaseNum);
+          if (Number.isFinite(stock) && Number.isFinite(desired) && desired > stock) {
+            invalid.push({productCode: code, reason: '库存不足'});
+          }
+        } catch (error) {
+          invalid.push({productCode: code, reason: '商品不存在'});
+        }
+      }
+      this.invalidOrderItems = invalid;
+      if (this.invalidOrderItems.length) {
+        this.$message.error('订单中含有已失效的产品！');
+      }
+    },
+    orderRowClass({row}) {
+      const code = row && row.productCode;
+      if (!code) {
+        return '';
+      }
+      const invalid = (this.invalidOrderItems || []).some(item => item.productCode === code);
+      return invalid ? 'order-row-invalid' : '';
+    },
+    resolveProductImage(productCode) {
+      if (productCode && productImages[productCode]) {
+        return productImages[productCode];
+      }
+      return fallbackImage || '';
     },
     async payment() {
       try {
@@ -159,6 +238,10 @@ export default {
         this.orderInfo.cremark = this.userInfo.cremark || '';
         if (this.orderClosed) {
           this.$message.error('订单已关闭，请重新下单');
+          return;
+        }
+        if (this.hasInvalidItems) {
+          this.$message.error('订单中含有已失效的产品！');
           return;
         }
         await new Promise(resolve => setTimeout(resolve, 1200));
@@ -334,10 +417,10 @@ export default {
     openRecharge(type) {
       if (type === 'zfb') {
         this.rechargeTitle = '支付宝充值';
-        this.rechargeImage = '/zfb_qr.jpg';
+        this.rechargeImage = this.rechargeZfbImage;
       } else {
         this.rechargeTitle = '微信支付充值';
-        this.rechargeImage = '/wechat_qr.jpg';
+        this.rechargeImage = this.rechargeWechatImage;
       }
       this.rechargeDialogVisible = true;
     },
@@ -426,6 +509,10 @@ export default {
     }
   },
   beforeDestroy() {
+    if (this.realtimeHandler && this.$eventBus) {
+      this.$eventBus.$off('realtime:global-refresh', this.realtimeHandler);
+      this.$eventBus.$off('realtime:order-updated', this.realtimeHandler);
+    }
     if (this.countdownTimer) {
       clearInterval(this.countdownTimer);
       this.countdownTimer = null;
@@ -446,7 +533,16 @@ export default {
         <div class="bill-column">
           <p class="bill-tip">以下是你购物车内的商品（CNY￥{{ cartTotal.toFixed(2) }}）</p>
           <el-card shadow="always" class="bill-card">
-            <el-table :data="shoppingCart">
+            <el-table :data="shoppingCart" :row-class-name="orderRowClass">
+              <el-table-column label="图片" width="120">
+                <template slot-scope="scope">
+                  <img
+                    :src="resolveProductImage(scope.row.productCode)"
+                    :alt="scope.row.productName || '文创产品'"
+                    class="order-thumb"
+                  />
+                </template>
+              </el-table-column>
               <el-table-column label="文创产品编号" prop="productCode"></el-table-column>
               <el-table-column label="名称" prop="productName"></el-table-column>
               <el-table-column label="数量" prop="purchaseNum"></el-table-column>
@@ -457,6 +553,13 @@ export default {
         <div class="bill-column">
           <p class="bill-title">确认付款</p>
           <p class="bill-subtitle">填写信息后即可完成支付并生成取件码</p>
+          <el-alert
+            v-if="hasInvalidItems"
+            type="error"
+            show-icon
+            class="bill-invalid-alert"
+            title="订单中含有已失效的产品！请返回购物车重新确认。"
+          />
           <div class="bill-info">
             <p class="bill-label">联系信息</p>
             <div class="required-label">
@@ -586,6 +689,24 @@ export default {
 .bill-subtitle {
   color: #5f6b66;
   margin: 0;
+}
+
+.bill-invalid-alert {
+  margin-top: 8px;
+}
+
+::v-deep .order-row-invalid td {
+  background: rgba(232, 58, 58, 0.08) !important;
+  color: #9c2f2f;
+}
+
+.order-thumb {
+  width: 88px;
+  height: 88px;
+  border-radius: 8px;
+  object-fit: cover;
+  background: rgba(31, 122, 109, 0.08);
+  border: 1px solid rgba(31, 122, 109, 0.12);
 }
 
 .bill-info {

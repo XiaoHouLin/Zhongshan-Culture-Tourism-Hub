@@ -31,46 +31,83 @@
         FROM user, client
         <where>
             user.uid = client.uid
-            <if test="uid != null and uid != ''">
+            <if test="exactMatch == true and uid != null and uid != ''">
+                and CAST(user.uid AS CHAR) = #{uid}
+            </if>
+            <if test="exactMatch != true and uid != null and uid != ''">
                 and CAST(user.uid AS CHAR) like concat('%', #{uid}, '%')
             </if>
-            <if test="username != null and username != ''">
+            <if test="exactMatch == true and username != null and username != ''">
+                and BINARY username = #{username}
+            </if>
+            <if test="exactMatch != true and username != null and username != ''">
                 and username like concat('%', #{username}, '%')
             </if>
-            <if test="email != null and email != ''">
+            <if test="exactMatch == true and email != null and email != ''">
+                and BINARY email = #{email}
+            </if>
+            <if test="exactMatch != true and email != null and email != ''">
                 and email like concat('%', #{email}, '%')
             </if>
-            <if test="authority != null and authority != ''">
+            <if test="exactMatch == true and authority != null and authority != ''">
+                and authority = #{authority}
+            </if>
+            <if test="exactMatch != true and authority != null and authority != ''">
                 and authority like concat('%', #{authority}, '%')
             </if>
-            <if test="cno != null and cno != ''">
+            <if test="exactMatch == true and cno != null and cno != ''">
+                and BINARY cno = #{cno}
+            </if>
+            <if test="exactMatch != true and cno != null and cno != ''">
                 and cno like concat('%', #{cno}, '%')
             </if>
-            <if test="cname != null and cname != ''">
+            <if test="exactMatch == true and cname != null and cname != ''">
+                and BINARY cname = #{cname}
+            </if>
+            <if test="exactMatch != true and cname != null and cname != ''">
                 and cname like concat('%', #{cname}, '%')
             </if>
-            <if test="csex != null and csex != ''">
+            <if test="exactMatch == true and csex != null and csex != ''">
+                and csex = #{csex}
+            </if>
+            <if test="exactMatch != true and csex != null and csex != ''">
                 and csex like concat('%', #{csex}, '%')
             </if>
-            <if test="cage != null and cage != ''">
+            <if test="exactMatch == true and cage != null and cage != ''">
+                and cage = #{cage}
+            </if>
+            <if test="exactMatch != true and cage != null and cage != ''">
                 and cage like concat('%', #{cage}, '%')
             </if>
-            <if test="caddress != null and caddress != ''">
+            <if test="exactMatch == true and caddress != null and caddress != ''">
+                and BINARY caddress = #{caddress}
+            </if>
+            <if test="exactMatch != true and caddress != null and caddress != ''">
                 and caddress like concat('%', #{caddress}, '%')
             </if>
-            <if test="cphone != null and cphone != ''">
+            <if test="exactMatch == true and cphone != null and cphone != ''">
+                and BINARY cphone = #{cphone}
+            </if>
+            <if test="exactMatch != true and cphone != null and cphone != ''">
                 and cphone like concat('%', #{cphone}, '%')
             </if>
             <if test="startDate != null and endDate != null and startDate != '' and endDate != ''">
                 and cdate between #{startDate} and #{endDate}
             </if>
-            <if test="cremark != null and cremark != ''">
+            <if test="exactMatch == true and cremark != null and cremark != ''">
+                and BINARY cremark = #{cremark}
+            </if>
+            <if test="exactMatch != true and cremark != null and cremark != ''">
                 and cremark like concat('%', #{cremark}, '%')
             </if>
-            <if test="balance != null and balance != ''">
+            <if test="exactMatch == true and balance != null and balance != ''">
+                and balance = #{balance}
+            </if>
+            <if test="exactMatch != true and balance != null and balance != ''">
                 and balance like concat('%', #{balance}, '%')
             </if>
         </where>
+        ORDER BY user.authority ASC, user.uid ASC
     </select>
 
     <select id="getChangeUsersInfo" resultType="com.example.tourism_rear.pack.utils.UserInfo">

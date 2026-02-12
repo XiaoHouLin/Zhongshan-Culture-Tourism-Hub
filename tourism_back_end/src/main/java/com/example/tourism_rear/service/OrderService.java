@@ -49,4 +49,12 @@ public interface OrderService {
     int getMonthlyProductPurchaseSum(Integer uid, String productCode);
 
     void createPendingPaymentMessage(Integer uid, Integer orderId);
+
+    void requestRefund(Integer uid, Integer orderId, String reason);
+
+    void approveRefund(Integer orderId);
+
+    void rejectRefund(Integer orderId);
+
+    void handleDeletedProductsRefund(List<String> productCodes);
 }

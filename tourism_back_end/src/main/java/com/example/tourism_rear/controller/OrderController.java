@@ -5,6 +5,8 @@ import com.example.tourism_rear.pack.utils.OrderInfo;
 import com.example.tourism_rear.pack.utils.OrderInfoAddDate;
 import com.example.tourism_rear.pack.utils.OrderRequest;
 import com.example.tourism_rear.pack.utils.OrderStatusUpdate;
+import com.example.tourism_rear.pack.utils.RefundRequestPayload;
+import com.example.tourism_rear.pack.utils.RefundReviewPayload;
 import com.example.tourism_rear.pack.utils.Result;
 import com.example.tourism_rear.service.OrderService;
 import io.jsonwebtoken.Claims;
@@ -32,8 +34,12 @@ public class OrderController {
         LocalDateTime localDateTime = LocalDateTime.now();
         log.info("添加订单/购物车，用户id为：{}，总价为{}，订单为：{}", orderRequest.getUid(),
                 orderRequest.getTotalProductPrice(), orderRequest.getShoppingCart());
-        orderService.addOrder(orderRequest, localDateTime);
-        return Result.success(orderRequest.getOrderId());
+        try {
+            orderService.addOrder(orderRequest, localDateTime);
+            return Result.success(orderRequest.getOrderId());
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
     }
 
     @GetMapping("/getOrderByOrderId={orderId}")
@@ -188,6 +194,55 @@ public class OrderController {
         }
         try {
             orderService.createPendingPaymentMessage(uid, update.getOrderId());
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/refund/request")
+    public Result requestRefund(@RequestBody RefundRequestPayload payload, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        if (payload == null || payload.getOrderId() == null) {
+            return Result.error("订单信息缺失");
+        }
+        try {
+            orderService.requestRefund(uid, payload.getOrderId(), payload.getReason());
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/refund/approve")
+    public Result approveRefund(@RequestBody RefundReviewPayload payload, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        if (payload == null || payload.getOrderId() == null) {
+            return Result.error("订单信息缺失");
+        }
+        try {
+            orderService.approveRefund(payload.getOrderId());
+            return Result.success();
+        } catch (RuntimeException e) {
+            return Result.error(e.getMessage());
+        }
+    }
+
+    @PostMapping("/refund/reject")
+    public Result rejectRefund(@RequestBody RefundReviewPayload payload, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        if (payload == null || payload.getOrderId() == null) {
+            return Result.error("订单信息缺失");
+        }
+        try {
+            orderService.rejectRefund(payload.getOrderId());
             return Result.success();
         } catch (RuntimeException e) {
             return Result.error(e.getMessage());

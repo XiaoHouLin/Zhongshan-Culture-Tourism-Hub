@@ -29,7 +29,8 @@ public interface UserService {
                   String startDate,
                   String endDate,
                   String cremark,
-                  Double balance);
+                  Double balance,
+                  Boolean exactMatch);
 
     void deleteUser(List<Integer> uid);
 

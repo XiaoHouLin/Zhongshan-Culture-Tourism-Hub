@@ -9,7 +9,7 @@
         class="slider-handle"
         :style="{ left: `${handleLeft}px` }"
         @mousedown.prevent="onStart"
-        @touchstart.prevent="onStart"
+        @touchstart="onStart"
       >
         <i class="el-icon-d-arrow-right"></i>
       </div>
@@ -90,15 +90,12 @@ export default {
       this.startX = this.getClientX(event);
       window.addEventListener('mousemove', this.onMove);
       window.addEventListener('mouseup', this.onEnd);
-      window.addEventListener('touchmove', this.onMove, { passive: false });
+      window.addEventListener('touchmove', this.onMove, { passive: true });
       window.addEventListener('touchend', this.onEnd);
     },
     onMove(event) {
       if (!this.dragging || this.disabled || this.passed) {
         return;
-      }
-      if (event.cancelable) {
-        event.preventDefault();
       }
       const clientX = this.getClientX(event);
       const max = Math.max(1, this.trackRect.width - this.handleWidth);
@@ -159,6 +156,7 @@ export default {
   background: #eef3f1;
   overflow: hidden;
   border: 1px solid rgba(31, 122, 109, 0.2);
+  touch-action: none;
 }
 
 .slider-fill {
@@ -202,6 +200,7 @@ export default {
   z-index: 3;
   cursor: pointer;
   transition: left 0.12s ease;
+  touch-action: none;
 }
 
 .slider-captcha.passed .slider-handle {

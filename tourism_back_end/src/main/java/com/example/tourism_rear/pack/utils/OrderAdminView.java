@@ -10,11 +10,13 @@ public class OrderAdminView {
     private Integer orderId;
     private Integer uid;
     private String username;
+    private Integer authority;
     private String phone;
     private String email;
     private String name;
     private String address;
     private String remark;
+    private Double totalPrice;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime CreateDate;
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
@@ -24,4 +26,8 @@ public class OrderAdminView {
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime pickupTime;
     private Integer orderStatus;
+    private String refundReason;
+    private Integer refundOriginStatus;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime refundRequestTime;
 }

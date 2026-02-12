@@ -10,6 +10,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Options;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
+import org.apache.ibatis.annotations.Delete;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -42,8 +43,9 @@ public interface OrderMapper {
     @Select("SELECT uid FROM `order` WHERE orderId = #{orderId}")
     Integer getOrderUid(Integer orderId);
 
-    @Select("SELECT o.orderId, o.uid, u.username, COALESCE(o.phone, c.cphone) AS phone, o.email, o.name, o.address, o.remark, " +
-            "o.CreateDate, o.CompleteDate, o.pickupCode, o.pickupStatus, o.pickupTime, o.orderStatus " +
+    @Select("SELECT o.orderId, o.uid, u.username, u.authority, COALESCE(o.phone, c.cphone) AS phone, o.email, o.name, o.address, o.remark, " +
+            "o.totalPrice, o.CreateDate, o.CompleteDate, o.pickupCode, o.pickupStatus, o.pickupTime, o.orderStatus, " +
+            "o.refundReason, o.refundOriginStatus, o.refundRequestTime " +
             "FROM `order` o " +
             "LEFT JOIN user u ON o.uid = u.uid " +
             "LEFT JOIN client c ON o.uid = c.uid " +
@@ -87,6 +89,12 @@ public interface OrderMapper {
     @Select("SELECT pickupToken, pickupStatus, pickupCode FROM `order` WHERE orderId = #{orderId}")
     Map<String, Object> getPickupInfo(Integer orderId);
 
+    @Delete("DELETE od FROM orderDetails od JOIN `order` o ON od.orderId = o.orderId WHERE o.uid = #{uid}")
+    void deleteOrderDetailsByUid(Integer uid);
+
+    @Delete("DELETE FROM `order` WHERE uid = #{uid}")
+    void deleteOrdersByUid(Integer uid);
+
     @Update("UPDATE `order` SET pickupStatus = 1, pickupTime = #{pickupTime}, isCompleted = 1, CompleteDate = #{pickupTime}, orderStatus = 3 WHERE orderId = #{orderId}")
     void markPickup(Integer orderId, LocalDateTime pickupTime);
 
@@ -97,17 +105,77 @@ public interface OrderMapper {
     @Update("UPDATE `order` SET orderStatus = #{orderStatus}, isCompleted = #{isCompleted}, pickupStatus = #{pickupStatus}, pickupTime = #{pickupTime}, CompleteDate = #{completeDate} WHERE orderId = #{orderId}")
     void updateOrderStatus(Integer orderId, Integer orderStatus, Integer isCompleted, Integer pickupStatus, LocalDateTime pickupTime, LocalDateTime completeDate);
 
+    @Update("UPDATE `order` SET orderStatus = #{orderStatus}, isCompleted = #{isCompleted}, pickupStatus = #{pickupStatus}, " +
+            "pickupTime = #{pickupTime}, CompleteDate = #{completeDate}, CreateDate = #{createDate} WHERE orderId = #{orderId}")
+    void updateOrderStatusWithCreateDate(Integer orderId, Integer orderStatus, Integer isCompleted, Integer pickupStatus,
+                                         LocalDateTime pickupTime, LocalDateTime completeDate, LocalDateTime createDate);
+
     @Update("UPDATE `order` SET pickupCode = #{pickupCode}, pickupToken = #{pickupToken} WHERE orderId = #{orderId}")
     void updatePickupInfo(@Param("orderId") Integer orderId, @Param("pickupCode") String pickupCode, @Param("pickupToken") String pickupToken);
+
+    @Select({
+            "<script>",
+            "SELECT COUNT(DISTINCT o.uid)",
+            "FROM `order` o",
+            "JOIN orderDetails od ON o.orderId = od.orderId",
+            "WHERE o.orderStatus = 0",
+            "AND od.productCode IN",
+            "<foreach collection='productCodes' item='code' open='(' separator=',' close=')'>",
+            "#{code}",
+            "</foreach>",
+            "</script>"
+    })
+    int countPendingPayingUsers(@Param("productCodes") List<String> productCodes);
+
+    @Select({
+            "<script>",
+            "SELECT DISTINCT o.orderId",
+            "FROM `order` o",
+            "JOIN orderDetails od ON o.orderId = od.orderId",
+            "WHERE o.orderStatus = 1",
+            "AND o.CreateDate &gt;= #{start}",
+            "AND o.CreateDate &lt; #{end}",
+            "AND od.productCode IN",
+            "<foreach collection='productCodes' item='code' open='(' separator=',' close=')'>",
+            "#{code}",
+            "</foreach>",
+            "</script>"
+    })
+    List<Integer> findPendingPickupOrdersByProducts(@Param("productCodes") List<String> productCodes,
+                                                    @Param("start") LocalDateTime start,
+                                                    @Param("end") LocalDateTime end);
+
+    @Delete({
+            "<script>",
+            "DELETE FROM orderDetails",
+            "WHERE orderId = #{orderId}",
+            "AND productCode IN",
+            "<foreach collection='productCodes' item='code' open='(' separator=',' close=')'>",
+            "#{code}",
+            "</foreach>",
+            "</script>"
+    })
+    void deleteOrderDetailsByOrderAndProductCodes(@Param("orderId") Integer orderId,
+                                                  @Param("productCodes") List<String> productCodes);
 
     @Select("SELECT COALESCE(SUM(od.purchaseNum), 0) " +
             "FROM orderDetails od JOIN `order` o ON od.orderId = o.orderId " +
             "WHERE o.uid = #{uid} AND od.productCode = #{productCode} " +
-            "AND o.orderStatus IN (1,3) AND o.CreateDate >= #{start} AND o.CreateDate < #{end}")
+            "AND o.orderStatus IN (1,3,6) AND o.CreateDate >= #{start} AND o.CreateDate < #{end}")
     int getMonthlyProductPurchaseSum(@Param("uid") Integer uid,
                                      @Param("productCode") String productCode,
                                      @Param("start") LocalDateTime start,
                                      @Param("end") LocalDateTime end);
+
+    @Update("UPDATE `order` SET orderStatus = 5, refundOriginStatus = #{originStatus}, refundReason = #{reason}, " +
+            "refundRequestTime = #{requestTime} WHERE orderId = #{orderId}")
+    void markRefundRequested(@Param("orderId") Integer orderId,
+                             @Param("originStatus") Integer originStatus,
+                             @Param("reason") String reason,
+                             @Param("requestTime") LocalDateTime requestTime);
+
+    @Update("UPDATE `order` SET refundOriginStatus = NULL, refundRequestTime = NULL WHERE orderId = #{orderId}")
+    void clearRefundRequest(Integer orderId);
 
     // 删除订单
     void deleteOrder(List<Integer> orderId);

@@ -21,12 +21,12 @@
         <result column="totalQuantity" property="totalQuantity"/>
     </resultMap>
 
-    <delete id="deleteProducts" parameterType="java.util.List">
-        DELETE FROM cultural_product WHERE productCode IN
+    <update id="deleteProducts" parameterType="java.util.List">
+        UPDATE cultural_product SET is_deleted = 1 WHERE productCode IN
         <foreach collection="list" item="productCode" separator="," open="(" close=")">
             #{productCode}
         </foreach>
-    </delete>
+    </update>
 
     <select id="list" resultMap="CulturalProductInfoMap">
         SELECT
@@ -42,20 +42,54 @@
         FROM cultural_product p
         LEFT JOIN orderDetails od ON od.productCode = p.productCode
         <where>
-            <if test="productCode != null and productCode != ''">
-                p.productCode like concat('%', #{productCode}, '%')
+            p.is_deleted = 0
+            <if test="exactMatch == true and productCode != null and productCode != ''">
+                AND BINARY p.productCode = #{productCode}
             </if>
-            <if test="productName != null and productName != ''">
+            <if test="exactMatch != true and productCode != null and productCode != ''">
+                AND p.productCode like concat('%', #{productCode}, '%')
+            </if>
+            <if test="exactMatch == true and productName != null and productName != ''">
+                AND BINARY p.productName = #{productName}
+            </if>
+            <if test="exactMatch != true and productName != null and productName != ''">
                 AND p.productName like concat('%', #{productName}, '%')
             </if>
-            <if test="displayMode != null and displayMode != ''">
+            <if test="exactMatch == true and displayMode != null and displayMode != ''">
+                AND BINARY p.displayMode = #{displayMode}
+            </if>
+            <if test="exactMatch != true and displayMode != null and displayMode != ''">
                 AND p.displayMode like concat('%', #{displayMode}, '%')
             </if>
-            <if test="highlight != null and highlight != ''">
+            <if test="exactMatch == true and highlight != null and highlight != ''">
+                AND BINARY p.highlight = #{highlight}
+            </if>
+            <if test="exactMatch != true and highlight != null and highlight != ''">
                 AND p.highlight like concat('%', #{highlight}, '%')
             </if>
-            <if test="category != null and category != ''">
-                AND p.category like concat('%', #{category}, '%')
+            <if test="categoryList != null and categoryList.size() > 0">
+                AND (
+                <foreach collection="categoryList" item="cat" separator=" OR ">
+                    <choose>
+                        <when test="exactMatch == true">
+                            FIND_IN_SET(BINARY #{cat}, REPLACE(REPLACE(p.category,'、', ','),'，',','))
+                        </when>
+                        <otherwise>
+                            FIND_IN_SET(#{cat}, REPLACE(REPLACE(p.category,'、', ','),'，',','))
+                        </otherwise>
+                    </choose>
+                </foreach>
+                )
+            </if>
+            <if test="(categoryList == null or categoryList.size() == 0) and category != null and category != ''">
+                <choose>
+                    <when test="exactMatch == true">
+                        AND BINARY p.category = #{category}
+                    </when>
+                    <otherwise>
+                        AND p.category like concat('%', #{category}, '%')
+                    </otherwise>
+                </choose>
             </if>
             <if test="minPrice != null and maxPrice != null">
                 AND p.price BETWEEN #{minPrice} AND #{maxPrice}
@@ -94,10 +128,44 @@
     <select id="categoryStatistics" resultMap="CulturalProductCategoryMap">
         SELECT
             p.category,
-            SUM(od.purchaseNum) AS totalQuantity
+            COALESCE(SUM(od.purchaseNum), 0) AS totalQuantity
         FROM
             orderDetails od
-                JOIN cultural_product p ON od.productCode = p.productCode
+                JOIN `order` o ON o.orderId = od.orderId
+                JOIN cultural_product p ON p.productCode = od.productCode
+                JOIN user u ON o.uid = u.uid
+        WHERE
+            o.orderStatus = 3
+            AND u.authority != 1
+            AND p.category IS NOT NULL AND p.category != ''
+        GROUP BY
+            p.category
+    </select>
+
+    <select id="categoryStatisticsByUid" resultMap="CulturalProductCategoryMap">
+        SELECT
+            p.category,
+            COALESCE(SUM(od.purchaseNum), 0) AS totalQuantity
+        FROM
+            orderDetails od
+                JOIN `order` o ON o.orderId = od.orderId
+                JOIN cultural_product p ON p.productCode = od.productCode
+        WHERE
+            o.uid = #{uid}
+            AND o.orderStatus = 3
+            AND p.category IS NOT NULL AND p.category != ''
+        GROUP BY
+            p.category
+    </select>
+
+    <select id="categoryProductStatistics" resultMap="CulturalProductCategoryMap">
+        SELECT
+            p.category,
+            COUNT(*) AS totalQuantity
+        FROM
+            cultural_product p
+        WHERE
+            p.category IS NOT NULL AND p.category != ''
         GROUP BY
             p.category
     </select>

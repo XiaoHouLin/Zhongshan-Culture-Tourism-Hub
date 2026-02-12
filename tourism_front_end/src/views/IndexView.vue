@@ -1721,7 +1721,7 @@ export default {
                   <i class="el-icon-arrow-down"></i>
                 </span>
                 <el-dropdown-menu slot="dropdown">
-                  <el-dropdown-item command="profile">修改资料</el-dropdown-item>
+                  <el-dropdown-item command="profile">查看资料</el-dropdown-item>
                   <el-dropdown-item divided command="orders">查看订单</el-dropdown-item>
                 </el-dropdown-menu>
               </el-dropdown>

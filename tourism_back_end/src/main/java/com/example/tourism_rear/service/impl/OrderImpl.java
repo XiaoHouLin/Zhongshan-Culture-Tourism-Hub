@@ -13,6 +13,7 @@ import com.example.tourism_rear.pack.utils.OrderStatusUpdate;
 import com.example.tourism_rear.pack.utils.PickupTokenUtil;
 import com.example.tourism_rear.service.MessageService;
 import com.example.tourism_rear.service.OrderService;
+import com.example.tourism_rear.service.RealtimeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -40,6 +41,8 @@ public class OrderImpl implements OrderService {
     private PickupTokenUtil pickupTokenUtil;
     @Autowired
     private MessageService messageService;
+    @Autowired
+    private RealtimeService realtimeService;
 
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000;
@@ -50,8 +53,12 @@ public class OrderImpl implements OrderService {
     @Transactional
     @Override
     public void addOrder(OrderRequest order, LocalDateTime localDateTime) {
+        validateCartItems(order);
         orderMapper.addOrder(order, localDateTime);
         orderMapper.addOrderDetails(order);
+        if (order != null) {
+            realtimeService.broadcastOrderUpdate(order.getUid(), order.getOrderId(), 0);
+        }
     }
 
     @Override
@@ -92,6 +99,7 @@ public class OrderImpl implements OrderService {
     @Override
     public void updateOrder(OrderRequest order) {
         ensureOrderActive(order == null ? null : order.getOrderId());
+        validateCartItems(order);
         int retryCount = 0;
         long delay = RETRY_DELAY;
         while (true) {
@@ -187,6 +195,8 @@ public class OrderImpl implements OrderService {
                 "订单待取货",
                 "订单 " + orderId + " 已支付，请查看取件码与取货信息。"
         );
+        realtimeService.broadcastOrderUpdate(uid, orderId, 1);
+        realtimeService.notifyAdminPendingOrder(uid, orderId);
         Map<String, String> pickupInfo = new HashMap<>();
         pickupInfo.put("pickupCode", pickupCode);
         pickupInfo.put("pickupToken", pickupToken);
@@ -233,7 +243,7 @@ public class OrderImpl implements OrderService {
             throw new RuntimeException("订单信息缺失");
         }
         int status = update.getOrderStatus() == null ? 0 : update.getOrderStatus();
-        if (status < 0 || status > 4) {
+        if (status < 0 || status > 6) {
             throw new RuntimeException("订单状态非法");
         }
         OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(update.getOrderId());
@@ -272,6 +282,7 @@ public class OrderImpl implements OrderService {
                 }
             }
             orderMapper.updateOrderStatus(update.getOrderId(), 4, 1, 0, null, now);
+            orderMapper.clearRefundRequest(update.getOrderId());
             messageService.createMessageIfAbsent(
                     orderInfo.getUid(),
                     "ORDER_REFUND",
@@ -279,13 +290,21 @@ public class OrderImpl implements OrderService {
                     "订单已退款",
                     "订单 " + update.getOrderId() + " 已退款，可进入订单详情重新支付。"
             );
+            realtimeService.broadcastOrderUpdate(orderInfo.getUid(), update.getOrderId(), 4);
             return;
         }
         Integer isCompleted = status == 0 ? 0 : 1;
         Integer pickupStatus = status == 3 ? 1 : 0;
         LocalDateTime pickupTime = status == 3 ? now : null;
         LocalDateTime completeDate = status == 0 ? null : now;
-        orderMapper.updateOrderStatus(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate);
+        if (status == 0) {
+            orderMapper.updateOrderStatusWithCreateDate(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate, now);
+        } else {
+            orderMapper.updateOrderStatus(update.getOrderId(), status, isCompleted, pickupStatus, pickupTime, completeDate);
+        }
+        if (previousStatus == 5 || status != 5) {
+            orderMapper.clearRefundRequest(update.getOrderId());
+        }
         if (status == 1) {
             if (orderInfo != null && (orderInfo.getPickupCode() == null || orderInfo.getPickupToken() == null)) {
                 String pickupCode = generatePickupCode(LocalDate.now());
@@ -300,6 +319,10 @@ public class OrderImpl implements OrderService {
                     "订单待取货",
                     "订单 " + update.getOrderId() + " 待取货，请查看取件码与取货信息。"
             );
+        }
+        realtimeService.broadcastOrderUpdate(orderInfo.getUid(), update.getOrderId(), status);
+        if (status == 1) {
+            realtimeService.notifyAdminPendingOrder(orderInfo.getUid(), update.getOrderId());
         }
     }
 
@@ -375,6 +398,153 @@ public class OrderImpl implements OrderService {
                 "订单待支付",
                 "订单 " + orderId + " 尚未支付，请及时完成付款。"
         );
+    }
+
+    @Override
+    public void requestRefund(Integer uid, Integer orderId, String reason) {
+        if (uid == null || orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(orderId);
+        if (orderInfo == null || orderInfo.getUid() == null || !orderInfo.getUid().equals(uid)) {
+            throw new RuntimeException("订单不存在");
+        }
+        int status = orderInfo.getOrderStatus() == null ? 0 : orderInfo.getOrderStatus();
+        if (status == 5) {
+            return;
+        }
+        if (status == 0 || status == 2 || status == 4) {
+            throw new RuntimeException("当前订单状态无法申请退款");
+        }
+        String finalReason = reason == null ? "" : reason.trim();
+        if (finalReason.isEmpty()) {
+            finalReason = "用户申请退款";
+        }
+        LocalDateTime now = LocalDateTime.now();
+        orderMapper.markRefundRequested(orderId, status, finalReason, now);
+        messageService.createMessageIfAbsent(
+                uid,
+                "REFUND_REQUEST",
+                String.valueOf(orderId),
+                "退款申请已提交",
+                "订单 " + orderId + " 已提交退款申请，等待管理员处理。"
+        );
+        realtimeService.broadcastOrderUpdate(uid, orderId, 5);
+        realtimeService.notifyAdminRefundRequest(uid, orderId);
+    }
+
+    @Override
+    public void approveRefund(Integer orderId) {
+        if (orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderStatusUpdate update = new OrderStatusUpdate();
+        update.setOrderId(orderId);
+        update.setOrderStatus(4);
+        updateOrderStatus(update);
+    }
+
+    @Override
+    public void rejectRefund(Integer orderId) {
+        if (orderId == null) {
+            throw new RuntimeException("订单信息缺失");
+        }
+        OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(orderId);
+        if (orderInfo == null) {
+            throw new RuntimeException("订单不存在");
+        }
+        Integer originStatus = orderInfo.getRefundOriginStatus();
+        if (originStatus == null) {
+            originStatus = 1;
+        }
+        Integer isCompleted = originStatus == 0 ? 0 : 1;
+        Integer pickupStatus = originStatus == 3 ? 1 : 0;
+        LocalDateTime pickupTime = originStatus == 3 ? orderInfo.getPickupTime() : null;
+        LocalDateTime completeDate = originStatus == 0 ? null : orderInfo.getCompleteDate();
+        orderMapper.updateOrderStatus(orderId, originStatus, isCompleted, pickupStatus, pickupTime, completeDate);
+        orderMapper.clearRefundRequest(orderId);
+        realtimeService.broadcastOrderUpdate(orderInfo.getUid(), orderId, originStatus);
+    }
+
+    @Override
+    @Transactional
+    public void handleDeletedProductsRefund(List<String> productCodes) {
+        if (productCodes == null || productCodes.isEmpty()) {
+            return;
+        }
+        LocalDateTime start = LocalDate.now().atStartOfDay();
+        LocalDateTime end = start.plusDays(1);
+        List<Integer> orderIds = orderMapper.findPendingPickupOrdersByProducts(productCodes, start, end);
+        if (orderIds == null || orderIds.isEmpty()) {
+            return;
+        }
+        for (Integer orderId : orderIds) {
+            if (orderId == null) {
+                continue;
+            }
+            OrderInfoAddDate orderInfo = orderMapper.getOrderInfoById(orderId);
+            if (orderInfo == null) {
+                continue;
+            }
+            List<Order> details = orderMapper.getOrderDetail(orderId);
+            if (details == null || details.isEmpty()) {
+                continue;
+            }
+            BigDecimal refundAmount = BigDecimal.ZERO;
+            BigDecimal remainingAmount = BigDecimal.ZERO;
+            for (Order item : details) {
+                if (item == null) {
+                    continue;
+                }
+                String code = item.getProductCode();
+                Integer qty = item.getPurchaseNum() == null ? 0 : item.getPurchaseNum();
+                Double price = item.getPrice() == null ? 0.0 : item.getPrice();
+                BigDecimal line = BigDecimal.valueOf(price).multiply(BigDecimal.valueOf(qty));
+                if (code != null && productCodes.contains(code)) {
+                    refundAmount = refundAmount.add(line);
+                } else {
+                    remainingAmount = remainingAmount.add(line);
+                }
+            }
+            if (refundAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                continue;
+            }
+            Integer uid = orderInfo.getUid();
+            Double balance = uid == null ? null : userMapper.getBalance(uid);
+            BigDecimal newBalance = BigDecimal.valueOf(balance == null ? 0 : balance)
+                    .add(refundAmount)
+                    .setScale(2, RoundingMode.HALF_UP);
+            if (uid != null) {
+                userMapper.updateBalance(uid, newBalance.doubleValue());
+            }
+            LocalDateTime now = LocalDateTime.now();
+            if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {
+                orderMapper.updateOrderStatus(orderId, 4, 1, 0, null, now);
+                orderMapper.clearRefundRequest(orderId);
+                messageService.createMessageIfAbsent(
+                        uid,
+                        "ORDER_REFUND",
+                        String.valueOf(orderId),
+                        "订单已退款",
+                        "订单 " + orderId + " 因商品下架已自动退款。"
+                );
+                realtimeService.broadcastOrderUpdate(uid, orderId, 4);
+            } else {
+                orderMapper.deleteOrderDetailsByOrderAndProductCodes(orderId, productCodes);
+                OrderRequest update = new OrderRequest(orderId, uid, remainingAmount.setScale(2, RoundingMode.HALF_UP).doubleValue(), null);
+                orderMapper.updateOrderTotalPrice(update);
+                orderMapper.updateOrderStatus(orderId, 6, 1, 0, null, now);
+                orderMapper.clearRefundRequest(orderId);
+                messageService.createMessageIfAbsent(
+                        uid,
+                        "ORDER_PARTIAL_REFUND",
+                        String.valueOf(orderId),
+                        "订单部分退款",
+                        "订单 " + orderId + " 因商品下架已自动部分退款，退款金额¥" + refundAmount.setScale(2, RoundingMode.HALF_UP)
+                );
+                realtimeService.broadcastOrderUpdate(uid, orderId, 6);
+            }
+        }
     }
 
     private void ensureOrderActive(Integer orderId) {
@@ -463,12 +633,42 @@ public class OrderImpl implements OrderService {
                 continue;
             }
             CulturalProductInfo product = productMapper.getProductByCode(productCode);
+            if (product == null) {
+                throw new RuntimeException("订单中含有已失效的产品！");
+            }
+            Integer stock = product.getStock();
+            if (stock != null && quantity > stock) {
+                throw new RuntimeException("库存不足");
+            }
             if (product != null && product.getDisplayMode() != null && product.getDisplayMode().contains("线下")) {
                 throw new RuntimeException("门店限定商品无法在线购买");
             }
             int purchased = orderMapper.getMonthlyProductPurchaseSum(uid, productCode, startOfMonth, endOfMonth);
             if (purchased + quantity > 5) {
                 throw new RuntimeException("每月每件商品限购5件");
+            }
+        }
+    }
+
+    private void validateCartItems(OrderRequest order) {
+        if (order == null || order.getShoppingCart() == null) {
+            return;
+        }
+        for (Order item : order.getShoppingCart()) {
+            if (item == null || item.getProductCode() == null || item.getProductCode().isBlank()) {
+                throw new RuntimeException("商品不存在或已下架");
+            }
+            int quantity = item.getPurchaseNum() == null ? 0 : item.getPurchaseNum();
+            if (quantity <= 0) {
+                throw new RuntimeException("购买数量必须为正整数");
+            }
+            CulturalProductInfo product = productMapper.getProductByCode(item.getProductCode());
+            if (product == null) {
+                throw new RuntimeException("商品不存在或已下架");
+            }
+            Integer stock = product.getStock();
+            if (stock != null && quantity > stock) {
+                throw new RuntimeException("库存不足");
             }
         }
     }

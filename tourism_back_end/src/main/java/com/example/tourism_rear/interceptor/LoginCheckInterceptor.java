@@ -69,6 +69,9 @@ public class LoginCheckInterceptor implements HandlerInterceptor {
         if (!StringUtils.hasText(jwt)) {
             jwt = request.getHeader("token");
         }
+        if (!StringUtils.hasText(jwt)) {
+            jwt = request.getParameter("token");
+        }
         return jwt;
     }
 

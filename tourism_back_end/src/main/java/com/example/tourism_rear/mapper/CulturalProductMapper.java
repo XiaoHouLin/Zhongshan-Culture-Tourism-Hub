@@ -18,10 +18,12 @@ public interface CulturalProductMapper {
                                    @Param("displayMode") String displayMode,
                                    @Param("highlight") String highlight,
                                    @Param("category") String category,
+                                   @Param("categoryList") List<String> categoryList,
                                    @Param("minPrice") Integer minPrice,
                                    @Param("maxPrice") Integer maxPrice,
                                    @Param("minStock") Integer minStock,
-                                   @Param("maxStock") Integer maxStock);
+                                   @Param("maxStock") Integer maxStock,
+                                   @Param("exactMatch") Boolean exactMatch);
 
     @Insert("INSERT INTO cultural_product (productCode, productName, displayMode, highlight, category, price, stock, create_time) " +
             "VALUES (#{productCode},#{productName},#{displayMode},#{highlight},#{category},#{price},#{stock},#{createTime})")
@@ -40,10 +42,10 @@ public interface CulturalProductMapper {
             "from cultural_product where productCode like 'ZSCP%'")
     Integer selectMaxProductCodeSequence();
 
-    @Select("select distinct category from cultural_product where category is not null and category != ''")
+    @Select("select distinct category from cultural_product where is_deleted = 0 and category is not null and category != ''")
     List<String> listCategories();
 
-    @Select("select * from cultural_product where productCode=#{productCode}")
+    @Select("select * from cultural_product where productCode=#{productCode} and is_deleted = 0")
     CulturalProductInfo getProductByCode(@Param("productCode") String productCode);
 
     void updateProduct(EditCulturalProduct productInfo);
@@ -53,4 +55,8 @@ public interface CulturalProductMapper {
     void restoreProductStock(@Param("quantity") Integer quantity, @Param("productCode") String productCode);
 
     List<CulturalProductCategory> categoryStatistics();
+
+    List<CulturalProductCategory> categoryStatisticsByUid(@Param("uid") Integer uid);
+
+    List<CulturalProductCategory> categoryProductStatistics();
 }

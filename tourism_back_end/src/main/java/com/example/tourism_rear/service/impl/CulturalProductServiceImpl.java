@@ -1,11 +1,13 @@
 package com.example.tourism_rear.service.impl;
 
 import com.example.tourism_rear.mapper.CulturalProductMapper;
+import com.example.tourism_rear.mapper.OrderMapper;
 import com.example.tourism_rear.pack.pagination.PageBean;
 import com.example.tourism_rear.pack.utils.CulturalProductCategory;
 import com.example.tourism_rear.pack.utils.CulturalProductInfo;
 import com.example.tourism_rear.pack.utils.EditCulturalProduct;
 import com.example.tourism_rear.service.CulturalProductService;
+import com.example.tourism_rear.service.OrderService;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
 import org.springframework.stereotype.Service;
@@ -20,9 +22,15 @@ public class CulturalProductServiceImpl implements CulturalProductService {
     private static final int PRODUCT_CODE_PAD = 4;
 
     private final CulturalProductMapper productMapper;
+    private final OrderMapper orderMapper;
+    private final OrderService orderService;
 
-    public CulturalProductServiceImpl(CulturalProductMapper productMapper) {
+    public CulturalProductServiceImpl(CulturalProductMapper productMapper,
+                                      OrderMapper orderMapper,
+                                      OrderService orderService) {
         this.productMapper = productMapper;
+        this.orderMapper = orderMapper;
+        this.orderService = orderService;
     }
 
     @Override
@@ -37,6 +45,15 @@ public class CulturalProductServiceImpl implements CulturalProductService {
     @Override
     public void deleteProducts(List<String> productCodes) {
         productMapper.deleteProducts(productCodes);
+        orderService.handleDeletedProductsRefund(productCodes);
+    }
+
+    @Override
+    public int countPendingPayingUsers(List<String> productCodes) {
+        if (productCodes == null || productCodes.isEmpty()) {
+            return 0;
+        }
+        return orderMapper.countPendingPayingUsers(productCodes);
     }
 
     @Override
@@ -64,11 +81,12 @@ public class CulturalProductServiceImpl implements CulturalProductService {
     @Override
     public PageBean list(Integer page, Integer pageSize,
                          String productCode, String productName, String displayMode, String highlight,
-                         String category, Integer minPrice, Integer maxPrice,
-                         Integer minStock, Integer maxStock) {
+                         String category, List<String> categoryList, Integer minPrice, Integer maxPrice,
+                         Integer minStock, Integer maxStock,
+                         Boolean exactMatch) {
         try (Page<?> ignored = PageHelper.startPage(page, pageSize)) {
             List<CulturalProductInfo> products = productMapper.list(productCode, productName, displayMode, highlight,
-                    category, minPrice, maxPrice, minStock, maxStock);
+                    category, categoryList, minPrice, maxPrice, minStock, maxStock, exactMatch);
             Page<CulturalProductInfo> productPage = (Page<CulturalProductInfo>) products;
             return new PageBean(productPage.getTotal(), productPage.getResult());
         }
@@ -87,5 +105,15 @@ public class CulturalProductServiceImpl implements CulturalProductService {
     @Override
     public List<CulturalProductCategory> categoryStatistics() {
         return productMapper.categoryStatistics();
+    }
+
+    @Override
+    public List<CulturalProductCategory> categoryStatisticsByUid(Integer uid) {
+        return productMapper.categoryStatisticsByUid(uid);
+    }
+
+    @Override
+    public List<CulturalProductCategory> categoryProductStatistics() {
+        return productMapper.categoryProductStatistics();
     }
 }

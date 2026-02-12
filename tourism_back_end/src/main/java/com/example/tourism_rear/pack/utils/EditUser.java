@@ -9,4 +9,6 @@ import lombok.ToString;
 @Data
 public class EditUser extends UserInfo {
     private String oldUid;
+    private String oldEmailCode;
+    private String newEmailCode;
 }

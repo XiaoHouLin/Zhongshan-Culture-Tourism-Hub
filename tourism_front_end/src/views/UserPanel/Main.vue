@@ -55,9 +55,10 @@ export default {
         '/home': '1',
         '/userInfo': '1',
         '/userPanel/culturalProducts': '2',
-        '/userManagement': '3',
-        '/userPanel/culturalProducts/manage': '4',
-        '/indexView': '5'
+        '/orderManagement': '3',
+        '/userManagement': '4',
+        '/userPanel/culturalProducts/manage': '5',
+        '/indexView': '6'
       };
       this.activeIndex = routeToMenu[to.path] || '1';
       localStorage.setItem('activeIndex', this.activeIndex);
@@ -124,8 +125,16 @@ export default {
           </el-menu-item>
         </router-link>
         <div v-if="authority === 1">
-          <router-link to="/userManagement" class="no-underline">
+          <router-link to="/orderManagement" class="no-underline">
             <el-menu-item index="3" @click="setActiveIndex('3')">
+              <i class="el-icon-tickets icon-color"></i>
+              <span slot="title" class="strong">订单管理</span>
+            </el-menu-item>
+          </router-link>
+        </div>
+        <div v-if="authority === 1">
+          <router-link to="/userManagement" class="no-underline">
+            <el-menu-item index="4" @click="setActiveIndex('4')">
               <i class="el-icon-user-solid icon-color"></i>
               <span slot="title" class="strong">用户管理</span>
             </el-menu-item>
@@ -133,13 +142,13 @@ export default {
         </div>
         <div v-if="authority === 1">
           <router-link to="/userPanel/culturalProducts/manage" class="no-underline">
-            <el-menu-item index="4" @click="setActiveIndex('4')">
+            <el-menu-item index="5" @click="setActiveIndex('5')">
               <i class="el-icon-notebook-1 icon-color"></i>
               <span slot="title" class="strong">文创管理</span>
             </el-menu-item>
           </router-link>
         </div>
-        <el-menu-item index="5" @click="handleLogout">
+        <el-menu-item index="6" @click="handleLogout">
           <i class="el-icon-right icon-color"></i>
           <span slot="title" class="strong">退出登录</span>
         </el-menu-item>

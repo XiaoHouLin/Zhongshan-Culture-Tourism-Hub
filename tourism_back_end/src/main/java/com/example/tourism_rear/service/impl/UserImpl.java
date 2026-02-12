@@ -1,5 +1,7 @@
 package com.example.tourism_rear.service.impl;
 
+import com.example.tourism_rear.mapper.MessageMapper;
+import com.example.tourism_rear.mapper.OrderMapper;
 import com.example.tourism_rear.mapper.UserMapper;
 import com.example.tourism_rear.pack.pagination.PageBean;
 import com.example.tourism_rear.pack.utils.EditUser;
@@ -28,6 +30,10 @@ public class UserImpl implements UserService {
     private UserMapper userMapper;
     @Autowired
     private MessageService messageService;
+    @Autowired
+    private OrderMapper orderMapper;
+    @Autowired
+    private MessageMapper messageMapper;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
@@ -38,6 +44,9 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void addUserInfo(UserInfo userInfo) {
+        if (userInfo != null) {
+            userInfo.setCphone(normalizePhone(userInfo.getCphone()));
+        }
         userInfo.setPassword(encodePasswordIfNeeded(userInfo.getPassword()));
         if (userInfo.getCdate() == null) {
             userInfo.setCdate(new Date());
@@ -61,6 +70,9 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void registerUser(Register registerInfo) {
+        if (registerInfo != null) {
+            registerInfo.setCphone(normalizePhone(registerInfo.getCphone()));
+        }
         registerInfo.setPassword(encodePasswordIfNeeded(registerInfo.getPassword()));
         userMapper.registerUser(registerInfo);
         registerInfo.setUid(getUidByUsername(registerInfo.getUsername()));
@@ -89,11 +101,12 @@ public class UserImpl implements UserService {
     @Override
     public PageBean list(Integer page, Integer pageSize, Integer uid, String username,
                          String email, Integer authority, String cno, String cname, String csex, Integer cage,
-                         String caddress, String cphone, String startDate, String endDate, String cremark, Double balance) {
+                         String caddress, String cphone, String startDate, String endDate, String cremark, Double balance,
+                         Boolean exactMatch) {
         try (Page<?> ignored = PageHelper.startPage(page, pageSize)) {
             List<UserInfo> userInfoList = userMapper.list(uid, username,
                     email, authority, cno, cname, csex, cage,
-                    caddress, cphone, startDate, endDate, cremark, balance);
+                    caddress, cphone, startDate, endDate, cremark, balance, exactMatch);
             userInfoList.forEach(userInfo -> userInfo.setPassword("Unknown"));
             Page<UserInfo> userInfoPage = (Page<UserInfo>) userInfoList;
             return new PageBean(userInfoPage.getTotal(), userInfoPage.getResult());
@@ -108,6 +121,17 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)//事务
     @Override
     public void deleteUser(List<Integer> uid) {
+        if (uid == null || uid.isEmpty()) {
+            return;
+        }
+        for (Integer item : uid) {
+            if (item == null) {
+                continue;
+            }
+            orderMapper.deleteOrderDetailsByUid(item);
+            orderMapper.deleteOrdersByUid(item);
+            messageMapper.deleteByUid(item);
+        }
         userMapper.deleteClient(uid);
         userMapper.deleteUser(uid);
     }
@@ -120,6 +144,9 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void updateUserInfo(EditUser editUser) {
+        if (editUser != null) {
+            editUser.setCphone(normalizePhone(editUser.getCphone()));
+        }
         userMapper.updateUser(editUser);
         userMapper.updateClient(editUser);
     }
@@ -245,6 +272,17 @@ public class UserImpl implements UserService {
             return passwordEncoder.matches(rawPassword, storedPassword);
         }
         return rawPassword.equals(storedPassword);
+    }
+
+    private String normalizePhone(String cphone) {
+        if (!StringUtils.hasText(cphone)) {
+            return cphone;
+        }
+        String digits = cphone.replaceAll("\\D", "");
+        if (digits.startsWith("86") && digits.length() > 11) {
+            digits = digits.substring(2);
+        }
+        return digits;
     }
 
     private boolean isBcryptHash(String value) {

@@ -91,6 +91,8 @@ export default {
       fuzzyAddress: '',
       detailAddress: '',
       loading: true,
+      realtimeRefreshTimer: null,
+      realtimeHandler: null,
       options: [{
         value: '20',
         label: '20'
@@ -123,7 +125,8 @@ export default {
         startDate: '',
         endDate: '',
         cremark: '',
-        balance: null
+        balance: null,
+        exactMatch: false
       },
       rules: {
         username: [{required: true, message: '请输入用户名', validator: validateUsername, trigger: 'blur'}],
@@ -146,6 +149,21 @@ export default {
     }
   },
   methods: {
+    initRealtimeRefresh() {
+      if (!this.$eventBus) {
+        return;
+      }
+      this.realtimeHandler = () => {
+        if (this.realtimeRefreshTimer) {
+          return;
+        }
+        this.realtimeRefreshTimer = setTimeout(() => {
+          this.realtimeRefreshTimer = null;
+          this.fetchData();
+        }, 600);
+      };
+      this.$eventBus.$on('realtime:global-refresh', this.realtimeHandler);
+    },
     clearSelection() {
       this.$refs.userTable.clearSelection();
     },
@@ -157,7 +175,7 @@ export default {
     },
     normalizeUserPayload(payload) {
       const digits = this.extractPhoneDigits(payload.cphone);
-      payload.cphone = digits.length === 11 ? `+86${digits}` : payload.cphone;
+      payload.cphone = digits.length === 11 ? digits : payload.cphone;
       if (payload.balance === '' || payload.balance === null || payload.balance === undefined) {
         payload.balance = 0;
       }
@@ -245,23 +263,26 @@ export default {
       try {
         const payload = {...this.changeUser};
         this.normalizeUserPayload(payload);
-        apiRear.post(`/userInfo/update`, payload)
-            .then(() => {
-              this.fetchData();
-              this.$message({
-                type: 'success',
-                message: '更改成功!'
-              });
-              this.dialogUpdateAddUsersVisible = false;
-              this.changeUser = {};
-              this.loading = true;
-            }).catch(err => {
-          console.log(err);
+        if (!payload.uid && Array.isArray(this.uid) && this.uid.length) {
+          payload.uid = this.uid[0];
+        }
+        const res = await apiRear.post(`/userInfo/update`, payload);
+        if (res && res.data && res.data.code === 1) {
+          this.fetchData();
+          this.$message({
+            type: 'success',
+            message: '更改成功!'
+          });
+          this.dialogUpdateAddUsersVisible = false;
+          this.changeUser = {};
+          this.loading = true;
+        } else {
+          const message = res && res.data && res.data.message ? res.data.message : '更改用户信息失败！请检查格式是否正确！';
           this.$message({
             type: 'error',
-            message: '更改用户信息失败！请检查格式是否正确！'
+            message
           });
-        });
+        }
       } catch (error) {
         console.error('未知错误:', error);
         this.$message.error('发生未知错误，请稍后再试');
@@ -338,7 +359,9 @@ export default {
         cphone: '',
         startDate: '',
         endDate: '',
-        cremark: ''
+        cremark: '',
+        balance: null,
+        exactMatch: false
       }
       this.date = [];
       this.addressNum = [];
@@ -365,12 +388,19 @@ export default {
     },
     delete(uid) {
       if (!uid) throw new Error('uid为空');
-      apiRear.delete(`/userInfo/${uid}`).then(() => {
-        this.fetchData();
-        this.$message({
-          type: 'success',
-          message: '删除成功!'
-        });
+      apiRear.delete(`/userInfo/${uid}`).then(res => {
+        if (res.data && res.data.code === 1) {
+          this.fetchData();
+          this.$message({
+            type: 'success',
+            message: '删除成功!'
+          });
+        } else {
+          this.$message({
+            type: 'error',
+            message: (res.data && res.data.message) || '删除用户失败'
+          });
+        }
       }).catch(err => {
         console.log(err);
         this.$message({
@@ -399,6 +429,16 @@ export default {
 
   mounted() {
     this.fetchData();
+    this.initRealtimeRefresh();
+  },
+  beforeDestroy() {
+    if (this.realtimeHandler && this.$eventBus) {
+      this.$eventBus.$off('realtime:global-refresh', this.realtimeHandler);
+    }
+    if (this.realtimeRefreshTimer) {
+      clearTimeout(this.realtimeRefreshTimer);
+      this.realtimeRefreshTimer = null;
+    }
   }
 }
 </script>
@@ -431,6 +471,15 @@ export default {
       </div>
       <!--      查询按钮对话框-->
       <el-dialog title="查询" :visible.sync="dialogSearchVisible" :close-on-click-modal="false" center width="1000px">
+        <div class="exact-match-toggle" :style="{ paddingLeft: searchLabelWidth }">
+          <span class="strong">精确查询</span>
+          <el-tooltip content="区分大小写，完全匹配" placement="bottom">
+            <el-button size="mini" :type="search.exactMatch ? 'primary' : 'info'"
+                       @click="search.exactMatch = !search.exactMatch">
+              {{ search.exactMatch ? '已开启' : '已关闭' }}
+            </el-button>
+          </el-tooltip>
+        </div>
         <div style="display: flex">
           <div style="width: 50%">
             <!--            TODO : 实现查询功能-->
@@ -643,28 +692,28 @@ export default {
       <el-table ref="userTable" :data="tableData" stripe style="width: 100%" :height="tableHeight" class="modern-table"
                 v-loading="loading" @selection-change="handleSelectionChange">
         <el-table-column type="selection" width="55"></el-table-column>
-        <el-table-column prop="uid" label="用户编号" width="120" fixed="left"></el-table-column>
-        <el-table-column prop="cno" label="顾客编号" width="90" fixed="left"></el-table-column>
-        <el-table-column prop="username" label="用户名" min-width="120"></el-table-column>
-        <el-table-column prop="authority" label="权限" width="100">
+        <el-table-column prop="uid" label="用户编号" width="120" fixed="left" sortable></el-table-column>
+        <el-table-column prop="cno" label="顾客编号" width="90" fixed="left" sortable></el-table-column>
+        <el-table-column prop="username" label="用户名" min-width="120" sortable></el-table-column>
+        <el-table-column prop="authority" label="权限" width="100" sortable>
           <template slot-scope="scope">
             <el-tag v-if="scope.row.authority === 1" type="danger" effect="dark">管理员</el-tag>
             <el-tag v-else effect="dark">顾客</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="email" label="邮箱" min-width="200"></el-table-column>
-        <el-table-column prop="cname" label="姓名" min-width="100"></el-table-column>
-        <el-table-column prop="csex" label="性别" width="90">
+        <el-table-column prop="email" label="邮箱" min-width="200" sortable></el-table-column>
+        <el-table-column prop="cname" label="姓名" min-width="100" sortable></el-table-column>
+        <el-table-column prop="csex" label="性别" width="90" sortable>
           <template slot-scope="scope">
             {{ getGenderText(scope.row.csex) }}
           </template>
         </el-table-column>
-        <el-table-column prop="cage" label="年龄" width="90"></el-table-column>
-        <el-table-column prop="caddress" label="地址" min-width="220"></el-table-column>
-        <el-table-column prop="cphone" label="电话" width="130"></el-table-column>
-        <el-table-column prop="cdate" label="创建日期" min-width="200"></el-table-column>
-        <el-table-column prop="cremark" label="备注" min-width="180"></el-table-column>
-        <el-table-column prop="balance" label="余额" width="100"></el-table-column>
+        <el-table-column prop="cage" label="年龄" width="90" sortable></el-table-column>
+        <el-table-column prop="caddress" label="地址" min-width="220" sortable></el-table-column>
+        <el-table-column prop="cphone" label="电话" width="130" sortable></el-table-column>
+        <el-table-column prop="cdate" label="创建日期" min-width="200" sortable></el-table-column>
+        <el-table-column prop="cremark" label="备注" min-width="180" sortable></el-table-column>
+        <el-table-column prop="balance" label="余额" width="100" sortable></el-table-column>
         <el-table-column label="操作" width="120" fixed="right">
           <template slot-scope="scope">
             <el-button
@@ -730,6 +779,15 @@ export default {
 
 .marginWidth {
   margin-bottom: 30px;
+}
+
+.exact-match-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  margin-bottom: 12px;
+  color: var(--ink-soft);
 }
 
 .panel-theme {

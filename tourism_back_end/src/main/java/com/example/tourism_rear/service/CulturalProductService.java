@@ -19,6 +19,11 @@ public interface CulturalProductService {
     void deleteProducts(List<String> productCodes);
 
     /**
+     * 统计正在支付中涉及这些文创产品的用户数。
+     */
+    int countPendingPayingUsers(List<String> productCodes);
+
+    /**
      * 验证产品编号是否可用（更新时）。
      */
     boolean isProductCodeAvailable(String targetProductCode, String originalProductCode);
@@ -43,8 +48,9 @@ public interface CulturalProductService {
      */
     PageBean list(Integer page, Integer pageSize,
                   String productCode, String productName, String displayMode, String highlight,
-                  String category, Integer minPrice, Integer maxPrice,
-                  Integer minStock, Integer maxStock);
+                  String category, List<String> categoryList, Integer minPrice, Integer maxPrice,
+                  Integer minStock, Integer maxStock,
+                  Boolean exactMatch);
 
     /**
      * 根据产品编号获取文创产品。
@@ -60,4 +66,14 @@ public interface CulturalProductService {
      * 获取按分类汇总的购买数量。
      */
     List<CulturalProductCategory> categoryStatistics();
+
+    /**
+     * 获取指定用户的文创品类购买统计。
+     */
+    List<CulturalProductCategory> categoryStatisticsByUid(Integer uid);
+
+    /**
+     * 获取商城文创品类统计（商品数量）。
+     */
+    List<CulturalProductCategory> categoryProductStatistics();
 }

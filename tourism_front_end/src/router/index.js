@@ -8,6 +8,7 @@ import UserInfo from '@/views/UserPanel/UserInfo.vue'
 import UserManagement from '@/views/UserPanel/UserManagement.vue'
 import CulturalProductShop from '@/views/UserPanel/CulturalProductShop.vue'
 import CulturalProductManagement from '@/views/UserPanel/CulturalProductManagement.vue'
+import OrderManagement from '@/views/UserPanel/OrderManagement.vue'
 import BillPayment from '@/views/UserPanel/billPayment.vue'
 import CompleteBill from '@/views/UserPanel/CompleteBill.vue'
 import TravelPromotion from '@/views/TravelPromotion.vue'
@@ -97,6 +98,15 @@ const router = new VueRouter({
         {
           path: '/userManagement',
           component: UserManagement,
+          meta: {
+            showRouterView: true,
+            requiresAuth: true,
+            requiredRole: 1
+          }
+        },
+        {
+          path: '/orderManagement',
+          component: OrderManagement,
           meta: {
             showRouterView: true,
             requiresAuth: true,

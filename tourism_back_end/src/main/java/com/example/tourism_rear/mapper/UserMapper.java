@@ -27,7 +27,8 @@ public interface UserMapper {
                         String startDate,
                         String endDate,
                         String cremark,
-                        Double balance);
+                        Double balance,
+                        Boolean exactMatch);
 
     void insertUser(UserInfo userInfo);
 

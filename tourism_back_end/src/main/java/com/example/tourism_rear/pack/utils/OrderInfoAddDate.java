@@ -27,4 +27,8 @@ public class OrderInfoAddDate{
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
     private LocalDateTime pickupTime;
     private Integer orderStatus;
+    private String refundReason;
+    private Integer refundOriginStatus;
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss", timezone = "GMT+8")
+    private LocalDateTime refundRequestTime;
 }
