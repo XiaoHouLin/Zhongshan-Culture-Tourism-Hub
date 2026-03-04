@@ -129,10 +129,35 @@ export default {
         return;
       }
       await this.markAsRead(message);
+      const type = message.messageType || message.type || '';
+      const refId = message.refId || message.refID || message.orderId || '';
       const target = this.resolveMessageRoute(message);
       if (target) {
         this.visible = false;
-        this.$router.push(target);
+        const currentPath = this.$route && this.$route.path ? this.$route.path : '';
+        if (target.path === '/userInfo' && currentPath === '/userInfo') {
+          const shouldOpenOrder = ['ORDER_PENDING', 'ORDER_PICKUP', 'ORDER_REFUND', 'ORDER_REFUND_REJECTED', 'REFUND_REQUEST'].includes(type)
+            && /^\d+$/.test(String(refId));
+          const shouldOpenWithdrawReview = type === 'WITHDRAW_REQUEST' && /^\d+$/.test(String(refId));
+          if (this.$eventBus && shouldOpenWithdrawReview) {
+            this.$eventBus.$emit('realtime:open-withdraw-review', {
+              requestId: Number(refId)
+            });
+            return;
+          }
+          if (this.$eventBus && shouldOpenOrder) {
+            this.$eventBus.$emit('realtime:open-orders', {
+              filter: 'all',
+              orderId: Number(refId)
+            });
+          }
+          return;
+        }
+        this.$router.push(target).catch(error => {
+          if (!error || error.name !== 'NavigationDuplicated') {
+            throw error;
+          }
+        });
       }
     },
     async markAsRead(message) {
@@ -161,14 +186,21 @@ export default {
     resolveMessageRoute(message) {
       const type = message.messageType || message.type || '';
       const refId = message.refId || message.refID || message.orderId || '';
+      if (type === 'WITHDRAW_REQUEST' && refId && /^\d+$/.test(String(refId))) {
+        sessionStorage.setItem('openWithdrawRequestId', String(refId));
+        return {path: '/userInfo'};
+      }
+      if (type === 'WITHDRAW_REQUEST_SUBMITTED' || type === 'WITHDRAW_APPROVED' || type === 'WITHDRAW_REJECTED') {
+        return {path: '/userInfo'};
+      }
       if (type === 'ORDER_PENDING' && refId) {
         return {path: '/billPayment', query: {orderId: refId}};
       }
-      if ((type === 'ORDER_PICKUP' || type === 'ORDER_REFUND') && refId) {
+      if ((type === 'ORDER_PICKUP' || type === 'ORDER_REFUND' || type === 'ORDER_REFUND_REJECTED') && refId) {
         sessionStorage.setItem('openOrderDetailId', String(refId));
         return {path: '/userInfo'};
       }
-      if (refId) {
+      if (refId && /^\d+$/.test(String(refId))) {
         sessionStorage.setItem('openOrderDetailId', String(refId));
         return {path: '/userInfo'};
       }

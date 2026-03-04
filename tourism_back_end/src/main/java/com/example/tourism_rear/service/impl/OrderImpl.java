@@ -14,6 +14,7 @@ import com.example.tourism_rear.pack.utils.PickupTokenUtil;
 import com.example.tourism_rear.service.MessageService;
 import com.example.tourism_rear.service.OrderService;
 import com.example.tourism_rear.service.RealtimeService;
+import com.example.tourism_rear.service.BalanceChangeService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,8 @@ public class OrderImpl implements OrderService {
     private MessageService messageService;
     @Autowired
     private RealtimeService realtimeService;
+    @Autowired
+    private BalanceChangeService balanceChangeService;
 
     private static final int MAX_RETRIES = 3;
     private static final long RETRY_DELAY = 1000;
@@ -169,6 +172,15 @@ public class OrderImpl implements OrderService {
 
         BigDecimal newBalance = balanceBD.subtract(totalPriceBD).setScale(2, RoundingMode.HALF_UP);
         userMapper.updateBalance(uid, newBalance.doubleValue());
+        balanceChangeService.recordChange(
+                uid,
+                "PURCHASE",
+                "购买文创产品，订单号 " + orderId,
+                totalPriceBD.negate().doubleValue(),
+                balanceBD.doubleValue(),
+                newBalance.doubleValue(),
+                1
+        );
 
         String pickupCode = generatePickupCode(LocalDate.now());
         String payload = orderId + "|" + pickupCode + "|" + localDateTime;
@@ -269,6 +281,15 @@ public class OrderImpl implements OrderService {
                     BigDecimal newBalance = BigDecimal.valueOf(balance).add(BigDecimal.valueOf(total))
                             .setScale(2, RoundingMode.HALF_UP);
                     userMapper.updateBalance(orderInfo.getUid(), newBalance.doubleValue());
+                    balanceChangeService.recordChange(
+                            orderInfo.getUid(),
+                            "REFUND",
+                            "订单退款，订单号 " + update.getOrderId(),
+                            BigDecimal.valueOf(total).doubleValue(),
+                            BigDecimal.valueOf(balance).doubleValue(),
+                            newBalance.doubleValue(),
+                            1
+                    );
                 }
             }
             List<Map<String, Object>> productInfo = orderMapper.getOrderDetailsProductCodes(update.getOrderId());
@@ -463,6 +484,13 @@ public class OrderImpl implements OrderService {
         LocalDateTime completeDate = originStatus == 0 ? null : orderInfo.getCompleteDate();
         orderMapper.updateOrderStatus(orderId, originStatus, isCompleted, pickupStatus, pickupTime, completeDate);
         orderMapper.clearRefundRequest(orderId);
+        messageService.createMessageIfAbsent(
+                orderInfo.getUid(),
+                "ORDER_REFUND_REJECTED",
+                String.valueOf(orderId),
+                "退款申请未通过",
+                "你的订单 " + orderId + " 申请退款失败，管理员拒绝您的退款申请，具体可以联系管理员。"
+        );
         realtimeService.broadcastOrderUpdate(orderInfo.getUid(), orderId, originStatus);
     }
 
@@ -516,6 +544,17 @@ public class OrderImpl implements OrderService {
                     .setScale(2, RoundingMode.HALF_UP);
             if (uid != null) {
                 userMapper.updateBalance(uid, newBalance.doubleValue());
+                balanceChangeService.recordChange(
+                        uid,
+                        remainingAmount.compareTo(BigDecimal.ZERO) <= 0 ? "REFUND" : "PARTIAL_REFUND",
+                        remainingAmount.compareTo(BigDecimal.ZERO) <= 0
+                                ? "商品下架自动退款，订单号 " + orderId
+                                : "商品下架自动部分退款，订单号 " + orderId,
+                        refundAmount.doubleValue(),
+                        BigDecimal.valueOf(balance == null ? 0 : balance).doubleValue(),
+                        newBalance.doubleValue(),
+                        1
+                );
             }
             LocalDateTime now = LocalDateTime.now();
             if (remainingAmount.compareTo(BigDecimal.ZERO) <= 0) {

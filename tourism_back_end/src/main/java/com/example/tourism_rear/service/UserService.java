@@ -57,4 +57,6 @@ public interface UserService {
     String getUsernameByEmail(String email);
 
     boolean resetPasswordByEmail(String email, String newPassword);
+
+    List<Integer> listAdminUids();
 }

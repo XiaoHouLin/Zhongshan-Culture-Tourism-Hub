@@ -7,9 +7,16 @@ import com.example.tourism_rear.pack.utils.Jwt;
 import com.example.tourism_rear.pack.utils.PasswordChangeRequest;
 import com.example.tourism_rear.pack.utils.Result;
 import com.example.tourism_rear.pack.utils.UserInfo;
+import com.example.tourism_rear.pack.utils.WithdrawRequestDetail;
+import com.example.tourism_rear.pack.utils.WithdrawRequestPayload;
+import com.example.tourism_rear.pack.utils.WithdrawRequestRecord;
+import com.example.tourism_rear.pack.utils.WithdrawReviewPayload;
+import com.example.tourism_rear.service.BalanceChangeService;
 import com.example.tourism_rear.service.EmailVerificationService;
+import com.example.tourism_rear.service.MessageService;
 import com.example.tourism_rear.service.RealtimeService;
 import com.example.tourism_rear.service.UserService;
+import com.example.tourism_rear.service.WithdrawRequestService;
 import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +31,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -43,6 +54,15 @@ public class UserController {
 
     @Autowired
     private RealtimeService realtimeService;
+
+    @Autowired
+    private BalanceChangeService balanceChangeService;
+
+    @Autowired
+    private MessageService messageService;
+
+    @Autowired
+    private WithdrawRequestService withdrawRequestService;
 
     @PostMapping("/insert")
     public Result userInfo(@RequestBody UserInfo userInfo) {
@@ -163,6 +183,148 @@ public class UserController {
     public Result personal(@PathVariable Integer uid) {
         log.info("Get personal info: {}", uid);
         return Result.success(userService.getUsersInfo(uid));
+    }
+
+    @GetMapping("/balance/history")
+    public Result balanceHistory(HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        return Result.success(balanceChangeService.listByUid(uid));
+    }
+
+    @PostMapping("/balance/withdraw/request")
+    public Result withdrawRequest(@RequestBody WithdrawRequestPayload payload, HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        Integer authority = getAuthorityFromRequest(request);
+        if (authority == null || authority != 3) {
+            return Result.error("仅顾客账号支持提现申请");
+        }
+        if (payload == null || payload.getAmount() == null) {
+            return Result.error("提现金额不能为空");
+        }
+        String phone = payload.getPhone() == null ? "" : payload.getPhone().trim();
+        if (!phone.matches("^\\d{11}$")) {
+            return Result.error("提现手机号必须为11位数字");
+        }
+        BigDecimal amount = BigDecimal.valueOf(payload.getAmount()).setScale(2, RoundingMode.HALF_UP);
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            return Result.error("提现金额必须大于0");
+        }
+        if (withdrawRequestService.countTodayByUid(uid) > 0) {
+            return Result.error("你今天已申请过提现，请明天再试");
+        }
+        UserInfo userInfo = userService.getUsersInfo(uid);
+        if (userInfo == null) {
+            return Result.error("用户不存在");
+        }
+        BigDecimal balance = BigDecimal.valueOf(userInfo.getBalance() == null ? 0D : userInfo.getBalance());
+        if (amount.compareTo(balance) > 0) {
+            return Result.error("提现金额不能超过账户余额");
+        }
+        Long requestId = withdrawRequestService.createRequest(uid, amount.doubleValue(), phone);
+        if (requestId == null) {
+            return Result.error("提现申请提交失败");
+        }
+        String refId = String.valueOf(requestId);
+        String username = userInfo.getUsername() == null ? String.valueOf(uid) : userInfo.getUsername();
+        String adminContent = "用户 " + username + "(uid=" + uid + ") 申请提现 ¥" + amount + "，手机号：" + phone + "，请及时处理。";
+        List<Integer> adminUids = userService.listAdminUids();
+        if (adminUids != null) {
+            for (Integer adminUid : adminUids) {
+                if (adminUid == null) {
+                    continue;
+                }
+                messageService.createMessageIfAbsent(
+                        adminUid,
+                        "WITHDRAW_REQUEST",
+                        refId,
+                        "用户提现申请",
+                        adminContent
+                );
+            }
+        }
+        messageService.createMessageIfAbsent(
+                uid,
+                "WITHDRAW_REQUEST_SUBMITTED",
+                refId,
+                "提现申请已提交",
+                "你已提交提现申请，金额 ¥" + amount + "，手机号：" + phone + "。一天仅可申请一次，请等待管理员处理。"
+        );
+        realtimeService.notifyAdminWithdrawRequest(uid, adminContent);
+        return Result.success();
+    }
+
+    @GetMapping("/balance/withdraw/today")
+    public Result withdrawTodayStatus(HttpServletRequest request) {
+        Integer uid = getUidFromRequest(request);
+        if (uid == null) {
+            return Result.error("无权限");
+        }
+        int todayCount = withdrawRequestService.countTodayByUid(uid);
+        WithdrawRequestRecord pending = withdrawRequestService.getLatestPendingByUid(uid);
+        Map<String, Object> data = new HashMap<>();
+        data.put("appliedToday", todayCount > 0);
+        data.put("pending", pending != null);
+        data.put("pendingAmount", pending == null ? null : pending.getAmount());
+        data.put("pendingPhone", pending == null ? null : pending.getPhone());
+        data.put("requestId", pending == null ? null : pending.getId());
+        return Result.success(data);
+    }
+
+    @GetMapping("/balance/withdraw/records")
+    public Result withdrawRecords(HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        return Result.success(withdrawRequestService.listAll());
+    }
+
+    @GetMapping("/balance/withdraw/request/{requestId}")
+    public Result withdrawRequestDetail(@PathVariable Long requestId, HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        WithdrawRequestRecord withdrawRequest = withdrawRequestService.getById(requestId);
+        if (withdrawRequest == null) {
+            return Result.error("提现申请不存在");
+        }
+        UserInfo userInfo = userService.getUsersInfo(withdrawRequest.getUid());
+        WithdrawRequestDetail detail = new WithdrawRequestDetail();
+        detail.setRequest(withdrawRequest);
+        detail.setUserInfo(userInfo);
+        detail.setBalanceHistory(balanceChangeService.listByUid(withdrawRequest.getUid()));
+        return Result.success(detail);
+    }
+
+    @PostMapping("/balance/withdraw/request/{requestId}/review")
+    public Result reviewWithdrawRequest(@PathVariable Long requestId,
+                                        @RequestBody WithdrawReviewPayload payload,
+                                        HttpServletRequest request) {
+        if (!isAdmin(request)) {
+            return Result.error("无权限");
+        }
+        if (payload == null || payload.getApproved() == null) {
+            return Result.error("审核参数缺失");
+        }
+        Integer reviewUid = getUidFromRequest(request);
+        boolean success;
+        if (Boolean.TRUE.equals(payload.getApproved())) {
+            success = withdrawRequestService.approve(requestId, reviewUid);
+            if (!success) {
+                return Result.error("审核失败，可能申请已处理或余额不足");
+            }
+            return Result.success();
+        }
+        success = withdrawRequestService.reject(requestId, reviewUid, payload.getRejectReason());
+        if (!success) {
+            return Result.error("驳回失败，可能申请已处理");
+        }
+        return Result.success();
     }
 
     @PostMapping("/updatePassword")

@@ -87,6 +87,18 @@ public class RealtimeService {
         sendToAdmins(event);
     }
 
+    public void notifyAdminWithdrawRequest(Integer uid, String message) {
+        RealtimeEvent event = new RealtimeEvent(
+                "ADMIN_WITHDRAW_REQUEST",
+                uid,
+                null,
+                null,
+                message,
+                System.currentTimeMillis()
+        );
+        sendToAdmins(event);
+    }
+
     public boolean isUserOnline(Integer uid) {
         if (uid == null) {
             return false;

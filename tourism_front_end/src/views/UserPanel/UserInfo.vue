@@ -83,8 +83,30 @@ export default {
       dialogUpdatePassword: false,
       dialog_zfb: false,
       dialog_wechat: false,
+      dialogBalanceHistory: false,
+      dialogWithdrawRecords: false,
       dialog_bill: false,
       dialog_orderDetail: false,
+      balanceHistoryLoading: false,
+      balanceHistory: [],
+      dialogWithdrawApply: false,
+      withdrawAmount: 0,
+      withdrawPhone: '',
+      withdrawTodayApplied: false,
+      withdrawTodayPending: false,
+      withdrawPendingAmount: null,
+      withdrawPendingPhone: '',
+      withdrawSubmitting: false,
+      withdrawRecordsLoading: false,
+      withdrawRecords: [],
+      withdrawAuditDialogVisible: false,
+      withdrawAuditLoading: false,
+      withdrawAuditRequestId: null,
+      withdrawAuditDetail: null,
+      withdrawAuditHistory: [],
+      withdrawAuditRejectReason: '',
+      withdrawAuditSubmitting: false,
+      withdrawPayoutConfirmVisible: false,
       statusDialogVisible: false,
       statusDialogOrder: null,
       searchLabelWidth: "120px",
@@ -104,6 +126,7 @@ export default {
       stats: {
         totalOrders: 0,
         completedOrders: 0,
+        withdrawRequestCount: 0,
         pendingOrders: 0,
         pendingAmount: 0,
         lastOrderDate: ''
@@ -147,6 +170,7 @@ export default {
       realtimeUpdateHandler: null,
       realtimeGlobalHandler: null,
       realtimeOpenOrdersHandler: null,
+      realtimeOpenWithdrawHandler: null,
       refreshStatsDebounced: null,
       selectedOrder: null,
       pickupQrUrl: '',
@@ -368,6 +392,28 @@ export default {
         address: this.userInfo.caddress,
         remark: this.userInfo.cremark
       };
+    },
+    withdrawPhoneValid() {
+      return /^\d{11}$/.test(String(this.withdrawPhone || ''));
+    },
+    withdrawSubmitDisabled() {
+      const amount = Number(this.withdrawAmount || 0);
+      const balance = Number(this.userInfo.balance || 0);
+      return this.withdrawTodayApplied
+        || !this.withdrawPhoneValid
+        || !Number.isFinite(amount)
+        || amount <= 0
+        || amount > balance;
+    },
+    withdrawAuditRequest() {
+      return this.withdrawAuditDetail && this.withdrawAuditDetail.request
+        ? this.withdrawAuditDetail.request
+        : null;
+    },
+    withdrawAuditUserInfo() {
+      return this.withdrawAuditDetail && this.withdrawAuditDetail.userInfo
+        ? this.withdrawAuditDetail.userInfo
+        : null;
     }
   },
   watch: {
@@ -396,6 +442,7 @@ export default {
     this.getMallCategoryStats();
     if (this.isAdmin) {
       this.getLowStockProducts();
+      this.loadWithdrawRecords(true);
     }
     this.$nextTick(() => {
       this.initCharts();
@@ -412,6 +459,9 @@ export default {
     }
     if (this.realtimeOpenOrdersHandler && this.$eventBus) {
       this.$eventBus.$off('realtime:open-orders', this.realtimeOpenOrdersHandler);
+    }
+    if (this.realtimeOpenWithdrawHandler && this.$eventBus) {
+      this.$eventBus.$off('realtime:open-withdraw-review', this.realtimeOpenWithdrawHandler);
     }
     if (this.emailTimerOld) {
       clearInterval(this.emailTimerOld);
@@ -478,10 +528,30 @@ export default {
         this.checkAutoOpenDialogs();
       };
       this.$eventBus.$on('realtime:open-orders', this.realtimeOpenOrdersHandler);
+      this.realtimeOpenWithdrawHandler = (payload = {}) => {
+        if (!payload || payload.requestId === undefined || payload.requestId === null) {
+          return;
+        }
+        sessionStorage.setItem('openWithdrawRequestId', String(payload.requestId));
+        this.checkAutoOpenDialogs();
+      };
+      this.$eventBus.$on('realtime:open-withdraw-review', this.realtimeOpenWithdrawHandler);
     },
     refreshAllStats() {
       if (!this.dialogEditInfo) {
         this.fetchData();
+      }
+      if (this.dialogBalanceHistory) {
+        this.loadBalanceHistory(true);
+      }
+      if (this.dialogWithdrawApply) {
+        this.loadWithdrawTodayStatus(true);
+      }
+      if (this.dialogWithdrawRecords) {
+        this.loadWithdrawRecords(true);
+      }
+      if (this.withdrawAuditDialogVisible && this.withdrawAuditRequestId) {
+        this.loadWithdrawAuditDetail(this.withdrawAuditRequestId, true);
       }
       this.getUserBill(true);
       this.getOrderSummary();
@@ -489,6 +559,7 @@ export default {
       if (this.isAdmin) {
         this.getMallCategoryStats(true);
         this.getLowStockProducts(true);
+        this.loadWithdrawRecords(true);
       }
     },
     startOrderAutoRefresh() {
@@ -532,6 +603,49 @@ export default {
       this.orderFilter = filter || 'all';
       this.dialog_bill = true;
     },
+    async openWithdrawRecordsDialog() {
+      if (!this.isAdmin) {
+        return;
+      }
+      this.dialogWithdrawRecords = true;
+      await this.loadWithdrawRecords(true);
+    },
+    async loadWithdrawRecords(silent = false) {
+      if (!this.isAdmin) {
+        return;
+      }
+      if (!silent) {
+        this.withdrawRecordsLoading = true;
+      }
+      try {
+        const response = await apiRear.get('/userInfo/balance/withdraw/records');
+        const rows = Array.isArray(response.data.data) ? response.data.data : [];
+        this.withdrawRecords = rows;
+        this.stats.withdrawRequestCount = rows.length;
+      } catch (error) {
+        this.withdrawRecords = [];
+        this.stats.withdrawRequestCount = 0;
+        if (!silent) {
+          this.$message.error('获取余额提现记录失败');
+        }
+      } finally {
+        this.withdrawRecordsLoading = false;
+      }
+    },
+    getWithdrawStatusLabel(status) {
+      const value = Number(status);
+      if (value === 0) return '待批准';
+      if (value === 1) return '已批准';
+      if (value === 2) return '已驳回';
+      return '未知';
+    },
+    getWithdrawStatusTagType(status) {
+      const value = Number(status);
+      if (value === 0) return 'warning';
+      if (value === 1) return 'success';
+      if (value === 2) return 'danger';
+      return 'info';
+    },
     handleTotalOrdersClick() {
       if (this.isAdmin) {
         this.$router.push('/orderManagement');
@@ -543,6 +657,7 @@ export default {
       const openOrders = sessionStorage.getItem('openOrders');
       const openOrderFilter = sessionStorage.getItem('openOrderFilter');
       const openOrderStatus = sessionStorage.getItem('openOrderStatus');
+      const openWithdrawRequestId = sessionStorage.getItem('openWithdrawRequestId');
       if (openOrders) {
         sessionStorage.removeItem('openOrders');
         if (openOrderFilter) {
@@ -561,9 +676,232 @@ export default {
         sessionStorage.removeItem('openOrderDetailId');
         this.orderDetail_handle(Number(detailId));
       }
+      if (this.isAdmin && openWithdrawRequestId) {
+        sessionStorage.removeItem('openWithdrawRequestId');
+        this.openWithdrawAuditDialog(Number(openWithdrawRequestId));
+      }
     },
-    openEditInfo() {
-      this.dialogEditInfo = true;
+    async openEditInfo() {
+      this.dialogBalanceHistory = true;
+      await this.loadBalanceHistory(true);
+    },
+    async loadBalanceHistory(silent = false) {
+      if (!silent) {
+        this.balanceHistoryLoading = true;
+      }
+      try {
+        const response = await apiRear.get('/userInfo/balance/history');
+        this.balanceHistory = Array.isArray(response.data.data) ? response.data.data : [];
+      } catch (error) {
+        if (!silent) {
+          this.$message.error('获取余额变动记录失败');
+        }
+      } finally {
+        this.balanceHistoryLoading = false;
+      }
+    },
+    getBalanceChangeTypeLabel(type) {
+      const map = {
+        RECHARGE: '账户充值',
+        PURCHASE: '购买商品',
+        REFUND: '订单退款',
+        PARTIAL_REFUND: '部分退款',
+        ADMIN_ADJUST: '管理员调整',
+        WITHDRAW_REQUEST: '提现申请',
+        WITHDRAW: '余额提现'
+      };
+      return map[type] || '余额变动';
+    },
+    formatDateTime(value) {
+      if (!value) {
+        return '--';
+      }
+      const date = this.parseDate(value);
+      if (!date) {
+        return value;
+      }
+      const yyyy = date.getFullYear();
+      const mm = String(date.getMonth() + 1).padStart(2, '0');
+      const dd = String(date.getDate()).padStart(2, '0');
+      const hh = String(date.getHours()).padStart(2, '0');
+      const mi = String(date.getMinutes()).padStart(2, '0');
+      const ss = String(date.getSeconds()).padStart(2, '0');
+      return `${yyyy}-${mm}-${dd} ${hh}:${mi}:${ss}`;
+    },
+    formatBalanceAmount(value) {
+      const num = Number(value || 0);
+      if (Number.isNaN(num)) {
+        return '0.00';
+      }
+      if (num > 0) {
+        return `+${num.toFixed(2)}`;
+      }
+      return num.toFixed(2);
+    },
+    async submitWithdrawRequest() {
+      if (!this.isCustomer) {
+        this.$message.warning('仅顾客账号支持提现申请');
+        return;
+      }
+      if (this.withdrawTodayApplied) {
+        this.$message.warning('你今天已申请过提现，请明天再试');
+        return;
+      }
+      const amount = Number(this.withdrawAmount || 0);
+      const balance = Number(this.userInfo.balance || 0);
+      if (!Number.isFinite(amount) || amount <= 0) {
+        this.$message.warning('请输入大于0的提现金额');
+        return;
+      }
+      if (amount > balance) {
+        this.$message.warning('提现金额不能超过账户余额');
+        return;
+      }
+      if (!this.withdrawPhoneValid) {
+        this.$message.warning('请输入11位手机号');
+        return;
+      }
+      this.withdrawSubmitting = true;
+      try {
+        const response = await apiRear.post('/userInfo/balance/withdraw/request', {
+          amount: Number(amount.toFixed(2)),
+          phone: this.withdrawPhone
+        });
+        if (response.data && response.data.code === 1) {
+          this.$message.success('提现申请已提交，等待管理员处理');
+          this.withdrawAmount = 0;
+          this.withdrawPhone = '';
+          this.dialogWithdrawApply = false;
+          await this.loadWithdrawTodayStatus(true);
+          return;
+        }
+        this.$message.error((response.data && response.data.message) || '提现申请提交失败');
+      } catch (error) {
+        this.$message.error('提现申请提交失败，请稍后重试');
+      } finally {
+        this.withdrawSubmitting = false;
+      }
+    },
+    async openWithdrawApplyDialog() {
+      if (!this.isCustomer) {
+        return;
+      }
+      this.withdrawAmount = 0;
+      this.withdrawPhone = '';
+      this.dialogWithdrawApply = true;
+      await this.loadWithdrawTodayStatus(true);
+    },
+    async loadWithdrawTodayStatus(silent = false) {
+      try {
+        const response = await apiRear.get('/userInfo/balance/withdraw/today');
+        const data = response && response.data ? response.data.data : null;
+        this.withdrawTodayApplied = Boolean(data && data.appliedToday);
+        this.withdrawTodayPending = Boolean(data && data.pending);
+        this.withdrawPendingAmount = data && data.pendingAmount !== undefined ? data.pendingAmount : null;
+        this.withdrawPendingPhone = data && data.pendingPhone ? String(data.pendingPhone) : '';
+      } catch (error) {
+        if (!silent) {
+          this.$message.error('获取提现状态失败');
+        }
+      }
+    },
+    sanitizeWithdrawPhone(value) {
+      this.withdrawPhone = String(value || '').replace(/\D/g, '').slice(0, 11);
+    },
+    async openWithdrawAuditDialog(requestId) {
+      if (!this.isAdmin || !requestId) {
+        return;
+      }
+      this.dialogWithdrawRecords = false;
+      this.withdrawAuditDialogVisible = true;
+      this.withdrawAuditRequestId = Number(requestId);
+      this.withdrawAuditRejectReason = '';
+      this.withdrawPayoutConfirmVisible = false;
+      await this.loadWithdrawAuditDetail(this.withdrawAuditRequestId, false);
+    },
+    async loadWithdrawAuditDetail(requestId, silent = false) {
+      if (!requestId) {
+        return;
+      }
+      if (!silent) {
+        this.withdrawAuditLoading = true;
+      }
+      try {
+        const response = await apiRear.get(`/userInfo/balance/withdraw/request/${requestId}`);
+        const data = response && response.data ? response.data.data : null;
+        this.withdrawAuditDetail = data || null;
+        this.withdrawAuditHistory = Array.isArray(data && data.balanceHistory) ? data.balanceHistory : [];
+      } catch (error) {
+        if (!silent) {
+          this.$message.error('获取提现申请详情失败');
+        }
+      } finally {
+        this.withdrawAuditLoading = false;
+      }
+    },
+    openPayoutConfirmDialog() {
+      if (!this.withdrawAuditRequest || Number(this.withdrawAuditRequest.status) !== 0) {
+        this.$message.warning('该提现申请已处理');
+        return;
+      }
+      this.withdrawPayoutConfirmVisible = true;
+    },
+    async approveWithdrawRequest() {
+      if (!this.withdrawAuditRequest) {
+        return;
+      }
+      this.withdrawAuditSubmitting = true;
+      try {
+        const response = await apiRear.post(
+          `/userInfo/balance/withdraw/request/${this.withdrawAuditRequest.id}/review`,
+          { approved: true }
+        );
+        if (response.data && response.data.code === 1) {
+          this.$message.success('提现申请已批准');
+          this.withdrawPayoutConfirmVisible = false;
+          await this.loadWithdrawAuditDetail(this.withdrawAuditRequest.id, true);
+          this.refreshAllStats();
+          return;
+        }
+        this.$message.error((response.data && response.data.message) || '批准失败');
+      } catch (error) {
+        this.$message.error('批准失败，请稍后重试');
+      } finally {
+        this.withdrawAuditSubmitting = false;
+      }
+    },
+    async rejectWithdrawRequest() {
+      if (!this.withdrawAuditRequest || Number(this.withdrawAuditRequest.status) !== 0) {
+        this.$message.warning('该提现申请已处理');
+        return;
+      }
+      let reason = String(this.withdrawAuditRejectReason || '').trim();
+      if (!reason) {
+        reason = '管理员审核未通过';
+      }
+      this.withdrawAuditSubmitting = true;
+      try {
+        const response = await apiRear.post(
+          `/userInfo/balance/withdraw/request/${this.withdrawAuditRequest.id}/review`,
+          { approved: false, rejectReason: reason }
+        );
+        if (response.data && response.data.code === 1) {
+          this.$message.success('已驳回提现申请');
+          await this.loadWithdrawAuditDetail(this.withdrawAuditRequest.id, true);
+          this.refreshAllStats();
+          return;
+        }
+        this.$message.error((response.data && response.data.message) || '驳回失败');
+      } catch (error) {
+        this.$message.error('驳回失败，请稍后重试');
+      } finally {
+        this.withdrawAuditSubmitting = false;
+      }
+    },
+    handleBalanceDialogClose() {
+      this.withdrawAmount = 0;
+      this.withdrawPhone = '';
+      this.dialogWithdrawApply = false;
     },
     handleOrderSelectionChange(selection) {
       this.selectedOrderIds = selection.map(item => item.orderId);
@@ -1716,6 +2054,295 @@ export default {
     </el-dialog>
 
     <el-dialog
+      title="账户余额变动记录"
+      :visible.sync="dialogBalanceHistory"
+      width="900px"
+      :close-on-click-modal="false"
+      @open="loadBalanceHistory"
+      @close="handleBalanceDialogClose"
+    >
+      <div class="balance-history-toolbar">
+        <div class="balance-current">
+          <span>当前可用余额</span>
+          <strong>￥{{ formatMoney(userInfo.balance) }}</strong>
+        </div>
+        <div v-if="isCustomer" class="balance-withdraw">
+          <el-button
+            type="warning"
+            @click="openWithdrawApplyDialog"
+          >
+            余额提现
+          </el-button>
+        </div>
+      </div>
+      <p class="balance-history-tip">变动信息包含时间、原因、金额。一天仅可申请一次余额提现。</p>
+      <el-table
+        :data="balanceHistory"
+        v-loading="balanceHistoryLoading"
+        border
+        stripe
+        height="380"
+        empty-text="暂无余额变动记录"
+      >
+        <el-table-column label="时间" min-width="190">
+          <template slot-scope="scope">
+            {{ formatDateTime(scope.row.createTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="变动原因" min-width="250">
+          <template slot-scope="scope">
+            {{ scope.row.reason || getBalanceChangeTypeLabel(scope.row.changeType) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="类型" width="120">
+          <template slot-scope="scope">
+            {{ getBalanceChangeTypeLabel(scope.row.changeType) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="变动金额" width="140">
+          <template slot-scope="scope">
+            <span :class="Number(scope.row.changeAmount || 0) >= 0 ? 'amount-plus' : 'amount-minus'">
+              {{ formatBalanceAmount(scope.row.changeAmount) }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column label="变动后余额" width="140">
+          <template slot-scope="scope">
+            {{ scope.row.afterBalance === null || scope.row.afterBalance === undefined ? '--' : formatMoney(scope.row.afterBalance) }}
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <el-dialog
+      title="余额提现申请"
+      :visible.sync="dialogWithdrawApply"
+      width="520px"
+      :close-on-click-modal="false"
+    >
+      <el-form label-width="110px">
+        <el-form-item label="提现金额">
+          <el-input-number
+            v-model="withdrawAmount"
+            :min="0"
+            :max="Number(userInfo.balance || 0)"
+            :step="10"
+            :precision="2"
+            controls-position="right"
+            style="width: 100%;"
+          ></el-input-number>
+        </el-form-item>
+        <el-form-item label="支付宝手机号">
+          <el-input
+            :value="withdrawPhone"
+            maxlength="11"
+            placeholder="请输入11位手机号"
+            @input="sanitizeWithdrawPhone"
+          ></el-input>
+          <p class="withdraw-note">审核通过后余额将打款至该手机号绑定的支付宝账户。</p>
+          <p class="withdraw-note">一天仅能申请一次余额提现。</p>
+          <p v-if="withdrawTodayPending" class="withdraw-pending">
+            当前有待审核提现申请：￥{{ formatMoney(withdrawPendingAmount) }}，手机号 {{ withdrawPendingPhone || '--' }}
+          </p>
+          <p v-if="withdrawTodayApplied" class="withdraw-applied">
+            您今天已申请过提现
+          </p>
+        </el-form-item>
+      </el-form>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="dialogWithdrawApply = false">取消</el-button>
+        <el-button
+          type="warning"
+          :loading="withdrawSubmitting"
+          :disabled="withdrawSubmitDisabled"
+          @click="submitWithdrawRequest"
+        >
+          提交申请
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <el-dialog
+      title="余额提现记录"
+      :visible.sync="dialogWithdrawRecords"
+      width="1100px"
+      :close-on-click-modal="false"
+      @open="loadWithdrawRecords"
+    >
+      <el-table
+        :data="withdrawRecords"
+        v-loading="withdrawRecordsLoading"
+        border
+        stripe
+        height="460"
+        empty-text="暂无提现申请记录"
+      >
+        <el-table-column label="申请单号" width="110">
+          <template slot-scope="scope">
+            #{{ scope.row.id }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="uid" label="UID" width="110"></el-table-column>
+        <el-table-column prop="username" label="用户名" width="140"></el-table-column>
+        <el-table-column prop="cname" label="姓名" width="130"></el-table-column>
+        <el-table-column prop="phone" label="手机号" width="130"></el-table-column>
+        <el-table-column label="提现金额" width="120">
+          <template slot-scope="scope">
+            ￥{{ formatMoney(scope.row.amount) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="状态" width="110">
+          <template slot-scope="scope">
+            <el-tag :type="getWithdrawStatusTagType(scope.row.status)">
+              {{ getWithdrawStatusLabel(scope.row.status) }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="申请时间" min-width="170">
+          <template slot-scope="scope">
+            {{ formatDateTime(scope.row.createTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="处理时间" min-width="170">
+          <template slot-scope="scope">
+            {{ formatDateTime(scope.row.updateTime) }}
+          </template>
+        </el-table-column>
+        <el-table-column label="操作" width="120" fixed="right">
+          <template slot-scope="scope">
+            <el-button type="text" @click="openWithdrawAuditDialog(scope.row.id)">查看审核</el-button>
+          </template>
+        </el-table-column>
+      </el-table>
+    </el-dialog>
+
+    <el-dialog
+      title="提现申请审核"
+      :visible.sync="withdrawAuditDialogVisible"
+      width="980px"
+      :close-on-click-modal="false"
+    >
+      <div v-loading="withdrawAuditLoading">
+        <div v-if="withdrawAuditRequest && withdrawAuditUserInfo" class="withdraw-audit-header">
+          <div class="withdraw-audit-item">
+            <span>申请单号</span>
+            <strong>#{{ withdrawAuditRequest.id }}</strong>
+          </div>
+          <div class="withdraw-audit-item">
+            <span>用户</span>
+            <strong>{{ withdrawAuditUserInfo.username || withdrawAuditUserInfo.uid }}</strong>
+          </div>
+          <div class="withdraw-audit-item">
+            <span>提现金额</span>
+            <strong>￥{{ formatMoney(withdrawAuditRequest.amount) }}</strong>
+          </div>
+          <div class="withdraw-audit-item">
+            <span>手机号</span>
+            <strong>{{ withdrawAuditRequest.phone }}</strong>
+          </div>
+          <div class="withdraw-audit-item">
+            <span>状态</span>
+            <strong>
+              {{ Number(withdrawAuditRequest.status) === 0 ? '待审核' : Number(withdrawAuditRequest.status) === 1 ? '已通过' : '已驳回' }}
+            </strong>
+          </div>
+          <div class="withdraw-audit-item">
+            <span>申请时间</span>
+            <strong>{{ formatDateTime(withdrawAuditRequest.createTime) }}</strong>
+          </div>
+        </div>
+
+        <el-descriptions v-if="withdrawAuditUserInfo" :column="3" border size="small" class="withdraw-user-info">
+          <el-descriptions-item label="UID">{{ withdrawAuditUserInfo.uid }}</el-descriptions-item>
+          <el-descriptions-item label="用户名">{{ withdrawAuditUserInfo.username }}</el-descriptions-item>
+          <el-descriptions-item label="当前余额">￥{{ formatMoney(withdrawAuditUserInfo.balance) }}</el-descriptions-item>
+          <el-descriptions-item label="姓名">{{ withdrawAuditUserInfo.cname || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="电话">{{ withdrawAuditUserInfo.cphone || '--' }}</el-descriptions-item>
+          <el-descriptions-item label="邮箱">{{ withdrawAuditUserInfo.email || '--' }}</el-descriptions-item>
+        </el-descriptions>
+
+        <p class="balance-history-tip">请先核对该用户余额变动记录，确认无异常后再执行审核。</p>
+        <el-table
+          :data="withdrawAuditHistory"
+          border
+          stripe
+          height="260"
+          empty-text="暂无余额变动记录"
+        >
+          <el-table-column label="时间" min-width="180">
+            <template slot-scope="scope">
+              {{ formatDateTime(scope.row.createTime) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="变动原因" min-width="260">
+            <template slot-scope="scope">
+              {{ scope.row.reason || getBalanceChangeTypeLabel(scope.row.changeType) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="类型" width="120">
+            <template slot-scope="scope">
+              {{ getBalanceChangeTypeLabel(scope.row.changeType) }}
+            </template>
+          </el-table-column>
+          <el-table-column label="变动金额" width="120">
+            <template slot-scope="scope">
+              <span :class="Number(scope.row.changeAmount || 0) >= 0 ? 'amount-plus' : 'amount-minus'">
+                {{ formatBalanceAmount(scope.row.changeAmount) }}
+              </span>
+            </template>
+          </el-table-column>
+          <el-table-column label="变动后余额" width="130">
+            <template slot-scope="scope">
+              {{ scope.row.afterBalance === null || scope.row.afterBalance === undefined ? '--' : formatMoney(scope.row.afterBalance) }}
+            </template>
+          </el-table-column>
+        </el-table>
+
+        <div v-if="withdrawAuditRequest && Number(withdrawAuditRequest.status) === 0" class="withdraw-review-actions">
+          <el-input
+            v-model="withdrawAuditRejectReason"
+            placeholder="驳回原因（可选）"
+            maxlength="80"
+            clearable
+            class="withdraw-reject-input"
+          ></el-input>
+          <el-button
+            type="danger"
+            :loading="withdrawAuditSubmitting"
+            @click="rejectWithdrawRequest"
+          >
+            驳回
+          </el-button>
+          <el-button
+            type="success"
+            :loading="withdrawAuditSubmitting"
+            @click="openPayoutConfirmDialog"
+          >
+            批准
+          </el-button>
+        </div>
+      </div>
+    </el-dialog>
+
+    <el-dialog
+      title="确认已打款"
+      :visible.sync="withdrawPayoutConfirmVisible"
+      width="420px"
+      :close-on-click-modal="false"
+    >
+      <p v-if="withdrawAuditRequest" class="withdraw-pay-confirm">
+        请确认已向手机号 <strong>{{ withdrawAuditRequest.phone }}</strong> 对应支付宝账户打款
+        <strong>￥{{ formatMoney(withdrawAuditRequest.amount) }}</strong>。
+      </p>
+      <div slot="footer" class="dialog-footer">
+        <el-button @click="withdrawPayoutConfirmVisible = false">取消</el-button>
+        <el-button type="primary" :loading="withdrawAuditSubmitting" @click="approveWithdrawRequest">
+          我已打款
+        </el-button>
+      </div>
+    </el-dialog>
+
+    <el-dialog
       title="查看订单"
       :visible.sync="dialog_bill"
       center
@@ -2291,10 +2918,10 @@ export default {
         <div class="stat-value">{{ stats.totalOrders }}</div>
         <div class="stat-foot">最近下单 {{ stats.lastOrderDate || '暂无' }}</div>
       </div>
-      <div v-if="isAdmin" class="stat-card panel-card clickable" @click="openOrderDialog('completed')">
-        <div class="stat-label">已完成</div>
-        <div class="stat-value">{{ stats.completedOrders }}</div>
-        <div class="stat-foot">完成率 {{ stats.totalOrders ? Math.round(stats.completedOrders / stats.totalOrders * 100) : 0 }}%</div>
+      <div v-if="isAdmin" class="stat-card panel-card clickable" @click="openWithdrawRecordsDialog">
+        <div class="stat-label">余额提现记录</div>
+        <div class="stat-value">{{ stats.withdrawRequestCount }}</div>
+        <div class="stat-foot">查看全部申请（待批准/已批准/已驳回）</div>
       </div>
       <div v-if="isAdmin" class="stat-card panel-card clickable" @click="openOrderDialog('pending')">
         <div class="stat-label">待处理</div>
@@ -3039,6 +3666,119 @@ export default {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.balance-history-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 10px;
+}
+
+.balance-current {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.balance-current span {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.balance-current strong {
+  font-size: 24px;
+  color: var(--teal);
+}
+
+.balance-withdraw {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.balance-history-tip {
+  margin: 0 0 12px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.withdraw-note {
+  margin: 8px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+.withdraw-applied {
+  margin: 8px 0 0;
+  color: #e45b5b;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.withdraw-pending {
+  margin: 8px 0 0;
+  color: #c75a31;
+  font-size: 12px;
+}
+
+.withdraw-audit-header {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.withdraw-audit-item {
+  background: rgba(31, 122, 109, 0.08);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.withdraw-audit-item span {
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+
+.withdraw-audit-item strong {
+  font-size: 14px;
+  color: var(--ink);
+}
+
+.withdraw-user-info {
+  margin: 8px 0 12px;
+}
+
+.withdraw-review-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.withdraw-reject-input {
+  width: 320px;
+}
+
+.withdraw-pay-confirm {
+  margin: 0;
+  line-height: 1.7;
+  color: var(--ink);
+}
+
+.amount-plus {
+  color: #2f8f5b;
+  font-weight: 700;
+}
+
+.amount-minus {
+  color: #e45b5b;
+  font-weight: 700;
 }
 
 .shipping-list p {

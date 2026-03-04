@@ -94,4 +94,7 @@ public interface UserMapper {
 
     @Select("select balance from client where uid=#{uid}")
     Double getBalance(Integer uid);
+
+    @Select("select uid from user where authority = 1")
+    List<Integer> listAdminUids();
 }

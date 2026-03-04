@@ -9,6 +9,7 @@ import com.example.tourism_rear.pack.utils.Login;
 import com.example.tourism_rear.pack.utils.Register;
 import com.example.tourism_rear.service.UserService;
 import com.example.tourism_rear.pack.utils.UserInfo;
+import com.example.tourism_rear.service.BalanceChangeService;
 import com.example.tourism_rear.service.MessageService;
 import com.github.pagehelper.Page;
 import com.github.pagehelper.PageHelper;
@@ -34,6 +35,8 @@ public class UserImpl implements UserService {
     private OrderMapper orderMapper;
     @Autowired
     private MessageMapper messageMapper;
+    @Autowired
+    private BalanceChangeService balanceChangeService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     /**
@@ -144,11 +147,40 @@ public class UserImpl implements UserService {
     @Transactional(rollbackFor = Exception.class)
     @Override
     public void updateUserInfo(EditUser editUser) {
+        Double beforeBalance = null;
+        if (editUser != null && editUser.getUid() != null) {
+            UserInfo existing = userMapper.getUsersInfo(editUser.getUid());
+            if (existing != null) {
+                beforeBalance = existing.getBalance();
+            }
+        }
         if (editUser != null) {
             editUser.setCphone(normalizePhone(editUser.getCphone()));
         }
         userMapper.updateUser(editUser);
         userMapper.updateClient(editUser);
+        if (editUser == null || editUser.getUid() == null) {
+            return;
+        }
+        Double afterBalance = userMapper.getBalance(editUser.getUid());
+        double oldValue = beforeBalance == null ? 0D : beforeBalance;
+        double newValue = afterBalance == null ? 0D : afterBalance;
+        double delta = newValue - oldValue;
+        if (Math.abs(delta) < 0.000001D) {
+            return;
+        }
+        String reason = delta > 0
+                ? "账户充值（管理员调整）"
+                : "账户余额调整（管理员扣减）";
+        balanceChangeService.recordChange(
+                editUser.getUid(),
+                delta > 0 ? "RECHARGE" : "ADMIN_ADJUST",
+                reason,
+                delta,
+                oldValue,
+                newValue,
+                1
+        );
     }
 
     @Override
@@ -217,6 +249,11 @@ public class UserImpl implements UserService {
     public boolean resetPasswordByEmail(String email, String newPassword) {
         String encoded = encodePasswordIfNeeded(newPassword);
         return userMapper.updatePasswordByEmail(email, encoded) > 0;
+    }
+
+    @Override
+    public List<Integer> listAdminUids() {
+        return userMapper.listAdminUids();
     }
 
 

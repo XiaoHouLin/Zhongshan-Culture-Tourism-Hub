@@ -148,6 +148,18 @@ const handleRealtimeEvent = (type, payload) => {
       });
     }
   }
+  if (type === 'ADMIN_WITHDRAW_REQUEST') {
+    const user = getUserPayload();
+    if (user && Number(user.authority) === 1) {
+      Notification({
+        title: '提示',
+        message: (payload && payload.message) || '您收到一条用户提现申请',
+        type: 'info',
+        duration: 10000,
+        position: 'bottom-right'
+      });
+    }
+  }
   if (type === 'ORDER_UPDATED') {
     eventBus.$emit('realtime:order-updated', payload || {});
   }
@@ -187,6 +199,13 @@ const connectRealtime = () => {
       handleRealtimeEvent('ADMIN_REFUND_REQUEST', JSON.parse(event.data || '{}'));
     } catch (e) {
       handleRealtimeEvent('ADMIN_REFUND_REQUEST', {});
+    }
+  });
+  realtimeSource.addEventListener('ADMIN_WITHDRAW_REQUEST', event => {
+    try {
+      handleRealtimeEvent('ADMIN_WITHDRAW_REQUEST', JSON.parse(event.data || '{}'));
+    } catch (e) {
+      handleRealtimeEvent('ADMIN_WITHDRAW_REQUEST', {});
     }
   });
   realtimeSource.addEventListener('GLOBAL_REFRESH', event => {
