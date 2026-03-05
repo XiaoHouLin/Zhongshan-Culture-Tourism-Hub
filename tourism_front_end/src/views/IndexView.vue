@@ -209,6 +209,13 @@ export default {
       townFeatureMap: {},
       townFeatureLoading: false,
       townFeatureError: '',
+      townFoodSourceCandidates: ['/data/food.md', '/food.md'],
+      townFoodMap: {},
+      townFoodLoading: false,
+      townFoodError: '',
+      townContentMode: 'culture',
+      townModeTransition: '',
+      townModeTimer: null,
       townFeatureTruncated: false,
       townDialogVisible: false,
       townDialogData: null,
@@ -239,6 +246,31 @@ export default {
         '西江花洲公园.jpg',
         '迪茵湖田家舍生态农场景区.jpg',
         '里溪·鲤印象景区.jpg'
+      ],
+      foodImageFiles: [
+        '三乡濑粉.jpg',
+        '三角生鱼宴.png',
+        '东凤黄鳝羹.png',
+        '东区正丰鱼.jpg',
+        '中山港茂生围香蕉.jpg',
+        '五桂山米仔头糕.jpg',
+        '南区横门海鲜.png',
+        '南头黄鱼宴.png',
+        '南朗崖口煲仔饭.jpg',
+        '古镇海洲鱼饼.png',
+        '坦洲虾蝲膏.jpg',
+        '大涌隆都子姜焖鸭.jpg',
+        '小榄炸鱼球.jpg',
+        '板芙古法瓦缸烧鸡.png',
+        '横栏七村烧饼.jpeg',
+        '民众火龙鱼.png',
+        '沙溪扣肉.png',
+        '港口特色蕉蕾鸡丝粥.png',
+        '石岐乳鸽.jpg',
+        '神湾菠萝.png',
+        '西区石岐粉包.jpg',
+        '阜沙脆肉罗非鱼.png',
+        '黄圃腊味.png'
       ],
       activeTown: {
         name: '中山市',
@@ -411,6 +443,27 @@ export default {
         return a.localeCompare(b, 'zh-Hans-CN');
       });
     },
+    isFoodMode() {
+      return this.townContentMode === 'food';
+    },
+    townToggleText() {
+      return this.isFoodMode ? '🍜 镇区美食' : '🏞️ 镇区文化';
+    },
+    townDetailChipText() {
+      return this.isFoodMode ? '镇区美食' : '镇区特色';
+    },
+    townDetailHintText() {
+      return this.isFoodMode ? '点击地图中的镇区查看美食详情' : '点击地图中的镇区查看详情';
+    },
+    townDialogChipText() {
+      return this.isFoodMode ? '美食详情' : '镇区详情';
+    },
+    foodPanelTown() {
+      const name = this.activeTown && this.activeTown.name ? this.activeTown.name : '中山市';
+      const normalized = this.normalizeTownName(name);
+      const info = this.townInfo[normalized];
+      return this.buildFoodTownData(normalized, info);
+    },
     dialogSections() {
       const data = this.townDialogData;
       const sections = data && Array.isArray(data.featureSections) ? data.featureSections : [];
@@ -443,6 +496,36 @@ export default {
     }
   },
   methods: {
+    decodeTextBuffer(buffer) {
+      let text = '';
+      try {
+        text = new TextDecoder('utf-8').decode(buffer);
+      } catch (error) {
+        text = '';
+      }
+      if (text && !text.includes('�')) {
+        return text;
+      }
+      try {
+        return new TextDecoder('gbk').decode(buffer);
+      } catch (error) {
+        return text || '';
+      }
+    },
+    toggleTownContentMode() {
+      const nextMode = this.townContentMode === 'culture' ? 'food' : 'culture';
+      this.townContentMode = nextMode;
+      this.townModeTransition = nextMode === 'food' ? 'to-food' : 'to-culture';
+      if (this.townDialogVisible) {
+        this.townDialogData = this.isFoodMode ? { ...this.foodPanelTown } : { ...this.activeTown };
+      }
+      if (this.townModeTimer) {
+        clearTimeout(this.townModeTimer);
+      }
+      this.townModeTimer = setTimeout(() => {
+        this.townModeTransition = '';
+      }, 920);
+    },
     refreshUser() {
       const token = sessionStorage.getItem('token');
       this.token = token || '';
@@ -1185,19 +1268,7 @@ export default {
           throw new Error('feature md not found');
         }
         const buffer = await response.arrayBuffer();
-        let text = '';
-        try {
-          text = new TextDecoder('utf-8').decode(buffer);
-        } catch (error) {
-          text = await response.text();
-        }
-        if (text.includes('�')) {
-          try {
-            text = new TextDecoder('gbk').decode(buffer);
-          } catch (error) {
-            // ignore decoding fallback
-          }
-        }
+        const text = this.decodeTextBuffer(buffer);
         this.townFeatureMap = this.parseTownFeatureText(text);
       } catch (error) {
         this.townFeatureError = '镇区特色信息加载失败，请检查文件路径。';
@@ -1209,6 +1280,43 @@ export default {
           this.townDialogData = { ...this.activeTown };
         }
       }
+    },
+    async loadTownFoods() {
+      this.townFoodLoading = true;
+      this.townFoodError = '';
+      let loaded = false;
+      let text = '';
+      const sources = Array.isArray(this.townFoodSourceCandidates) ? this.townFoodSourceCandidates : [];
+      for (let i = 0; i < sources.length; i += 1) {
+        const source = sources[i];
+        try {
+          const response = await fetch(source, { cache: 'no-store' });
+          if (!response.ok) {
+            continue;
+          }
+          const buffer = await response.arrayBuffer();
+          const decoded = this.decodeTextBuffer(buffer);
+          if (!decoded) {
+            continue;
+          }
+          text = decoded;
+          loaded = true;
+          break;
+        } catch (error) {
+          // try next source
+        }
+      }
+      if (!loaded) {
+        this.townFoodError = '镇区美食信息加载失败，请检查 food.md 文件路径。';
+        this.townFoodMap = {};
+        this.townFoodLoading = false;
+        return;
+      }
+      this.townFoodMap = this.parseTownFoodText(text);
+      if (!Object.keys(this.townFoodMap).length) {
+        this.townFoodError = '镇区美食信息解析失败，请检查 food.md 的标题格式。';
+      }
+      this.townFoodLoading = false;
     },
     parseTownFeatureText(text) {
       if (!text) {
@@ -1224,7 +1332,7 @@ export default {
         }
       };
       lines.forEach(rawLine => {
-        const line = rawLine.trim();
+        const line = rawLine.replace(/^\uFEFF/, '').trim();
         if (!line) {
           return;
         }
@@ -1251,6 +1359,130 @@ export default {
       });
       finalize();
       return result;
+    },
+    parseTownFoodText(text) {
+      if (!text) {
+        return {};
+      }
+      const lines = text.replace(/\r\n/g, '\n').split('\n');
+      const result = {};
+      let current = null;
+      const finalize = () => {
+        if (!current || !current.name) {
+          return;
+        }
+        current.sections = this.buildTownFoodSections(current.spot, current.lines);
+        current.image = this.resolveFoodImage(current.name, current.spot);
+        result[current.name] = current;
+      };
+      lines.forEach(rawLine => {
+        const line = rawLine.replace(/^\uFEFF/, '').trim();
+        if (!line) {
+          return;
+        }
+        const headingMatch = line.match(/^(\d{1,2})\s*[）).、．]?\s*(.+)$/);
+        if (headingMatch && /[：:]/.test(headingMatch[2])) {
+          finalize();
+          const code = Number(headingMatch[1]);
+          const payload = headingMatch[2];
+          const splitter = payload.search(/[：:]/);
+          const townRaw = splitter >= 0 ? payload.slice(0, splitter).trim() : payload.trim();
+          const spot = splitter >= 0 ? payload.slice(splitter + 1).trim() : '';
+          const townName = this.resolveTownFromFoodHeading(code, townRaw);
+          current = {
+            name: townName,
+            spot: spot || '',
+            lines: []
+          };
+          return;
+        }
+        if (!current) {
+          return;
+        }
+        current.lines.push(line);
+      });
+      finalize();
+      return result;
+    },
+    resolveTownFromFoodHeading(code, townRaw) {
+      const entry = Object.entries(this.townCodeMap || {}).find(([, value]) => Number(value) === Number(code));
+      if (entry && entry[0]) {
+        return entry[0];
+      }
+      return this.normalizeTownNameLoose(townRaw);
+    },
+    buildTownFoodSections(spot, lines) {
+      const sections = [];
+      if (spot) {
+        sections.push({
+          title: '招牌美食',
+          lines: [spot]
+        });
+      }
+      const body = Array.isArray(lines) ? lines.join('') : '';
+      const normalizedText = body.replace(/\s+/g, '').trim();
+      if (!normalizedText) {
+        sections.push({
+          title: '美食概览',
+          lines: ['暂无详细介绍，欢迎点击镇区查看更多信息。']
+        });
+        return sections;
+      }
+      const sentenceList = normalizedText
+        .split(/[。！？!?]/)
+        .map(item => item.trim())
+        .filter(Boolean)
+        .map(item => `${item}。`);
+      const overview = sentenceList.length ? sentenceList[0] : normalizedText;
+      sections.push({
+        title: '美食概览',
+        lines: [overview]
+      });
+      const highlights = sentenceList.slice(1, 7);
+      if (highlights.length) {
+        sections.push({
+          title: '关键信息',
+          lines: highlights
+        });
+      }
+      return sections;
+    },
+    normalizeFoodKey(value) {
+      if (!value) {
+        return '';
+      }
+      return value
+        .replace(/\.[a-zA-Z0-9]+$/g, '')
+        .replace(/[()（）]/g, '')
+        .replace(/[，,。！？：:；;、]/g, '')
+        .replace(/[\s·•\-_]/g, '')
+        .replace(/(街道|镇区|镇|特色|招牌|美食)/g, '')
+        .trim();
+    },
+    resolveFoodImage(townName, spot) {
+      const files = this.foodImageFiles || [];
+      if (!files.length) {
+        return '';
+      }
+      const normalizedTown = this.normalizeTownName(townName || '');
+      const townShort = this.normalizeFoodKey((normalizedTown || '').replace(/(街道|镇)$/g, ''));
+      const spotKey = this.normalizeFoodKey(spot || '');
+      const findByKey = key => {
+        if (!key) {
+          return '';
+        }
+        return (
+          files.find(file => {
+            const fileKey = this.normalizeFoodKey(file);
+            return fileKey === key || fileKey.includes(key) || key.includes(fileKey);
+          }) || ''
+        );
+      };
+      let match = findByKey(townShort);
+      if (!match) {
+        match = findByKey(spotKey);
+      }
+      return match ? `/food/${encodeURIComponent(match)}` : '';
     },
     cleanTownTitle(title) {
       if (!title) {
@@ -1546,9 +1778,7 @@ export default {
         this.townDialogData.image = this.defaultTownImage;
       }
     },
-    setActiveTown(name) {
-      const normalized = this.normalizeTownName(name);
-      const info = this.townInfo[normalized];
+    buildCultureTownData(normalized, info) {
       const feature = this.townFeatureMap[normalized];
       const fallbackDescription = '镇区风貌以岭南水乡与现代生活交融为特色。';
       const fallbackSights = ['特色街区', '城市公园', '滨水绿道'];
@@ -1572,7 +1802,7 @@ export default {
           info.sights.map(spot => this.resolveScenicImage(spot, normalized)).find(Boolean) || '';
       }
       const image = scenicImage || this.getTownImage(normalized);
-      this.activeTown = {
+      return {
         name: normalized,
         description: info ? info.description : fallbackDescription,
         sights: info ? info.sights : fallbackSights,
@@ -1581,16 +1811,61 @@ export default {
         featureTitle,
         featureSections,
         featurePreviewSections,
-        featureHasMore
+        featureHasMore,
+        contentType: 'culture'
       };
+    },
+    buildFoodTownData(normalized, info) {
+      const food = this.townFoodMap[normalized];
+      const fallbackDescription = '镇区美食以岭南风味与本地食材见长。';
+      const fallbackFoods = info && Array.isArray(info.foods) && info.foods.length ? info.foods : ['地道小吃', '家常风味'];
+      const featureTitle = food && food.spot ? food.spot : fallbackFoods[0];
+      const featureSections =
+        food && Array.isArray(food.sections) && food.sections.length
+          ? food.sections
+          : [
+              { title: '招牌美食', lines: [featureTitle || `${normalized}美食`] },
+              {
+                title: '美食概览',
+                lines: [
+                  `${normalized === '中山市' ? '中山市' : normalized}以${fallbackFoods.join('、')}等美食风味受到游客欢迎。`
+                ]
+              },
+              { title: '关键信息', lines: fallbackFoods }
+            ];
+      const previewResult = this.buildTownFeaturePreview(featureSections);
+      const featurePreviewSections = previewResult.sections;
+      const featureHasMore = previewResult.hasMore;
+      const foodImage =
+        (food && food.image) || this.resolveFoodImage(normalized, featureTitle) || this.getTownImage(normalized);
+      return {
+        name: normalized,
+        description: info ? info.description : fallbackDescription,
+        sights: info && Array.isArray(info.sights) ? info.sights : ['特色街区', '城市公园', '滨水绿道'],
+        foods: fallbackFoods,
+        image: foodImage,
+        featureTitle,
+        featureSections,
+        featurePreviewSections,
+        featureHasMore,
+        contentType: 'food'
+      };
+    },
+    setActiveTown(name) {
+      const normalized = this.normalizeTownName(name);
+      const info = this.townInfo[normalized];
+      this.activeTown = this.buildCultureTownData(normalized, info);
       this.updateTownSvgActive();
+      if (this.townDialogVisible) {
+        this.townDialogData = this.isFoodMode ? { ...this.foodPanelTown } : { ...this.activeTown };
+      }
       this.$nextTick(() => this.updateTownFeatureClamp());
     },
     openTownDialog(name) {
       if (name) {
         this.setActiveTown(name);
       }
-      this.townDialogData = { ...this.activeTown };
+      this.townDialogData = this.isFoodMode ? { ...this.foodPanelTown } : { ...this.activeTown };
       this.townDialogVisible = true;
     },
     openImageDialog(src, title) {
@@ -1652,6 +1927,7 @@ export default {
       }
       this.loadTownSvg();
       this.loadTownFeatures();
+      this.loadTownFoods();
       this.setActiveTown(this.activeTown.name);
       this.updateTownFeatureClamp();
     });
@@ -1664,6 +1940,10 @@ export default {
     if (this.mapLoadTimer) {
       clearTimeout(this.mapLoadTimer);
       this.mapLoadTimer = null;
+    }
+    if (this.townModeTimer) {
+      clearTimeout(this.townModeTimer);
+      this.townModeTimer = null;
     }
     if (this.$refs.townSvgHost) {
       this.$refs.townSvgHost.innerHTML = '';
@@ -1883,23 +2163,83 @@ export default {
         <div class="content-container">
           <div class="section-header reveal">
             <h3 class="section-title">镇区文化与美食</h3>
-            <p class="section-subtitle">点击地图即可查看镇区文化与美食。</p>
+            <div class="town-mode-toggle-wrap">
+              <button
+                class="town-mode-switch"
+                :class="{ 'is-food': isFoodMode }"
+                type="button"
+                @click="toggleTownContentMode"
+              >
+                <span class="town-mode-track-label town-mode-track-label--left">🏞️ 镇区文化</span>
+                <span class="town-mode-track-label town-mode-track-label--right">🍜 镇区美食</span>
+                <span class="town-mode-thumb">{{ townToggleText }}</span>
+              </button>
+            </div>
           </div>
-            <el-row :gutter="32" class="reveal town-experience-row" type="flex" align="stretch">
-              <el-col :md="16" :sm="24">
+            <el-row
+              :gutter="32"
+              class="reveal town-experience-row"
+              :class="{ 'is-food': isFoodMode, 'is-visible': true }"
+              type="flex"
+              align="stretch"
+            >
+              <el-col :md="16" :sm="24" class="town-mode-col town-mode-col--map">
                 <div class="map-card map-card--svg">
                   <div class="map-visual">
-                    <div class="svg-map svg-map--large">
+                    <div
+                      class="svg-map svg-map--large"
+                      :class="{
+                        'is-mode-food': isFoodMode,
+                        'is-animating-to-food': townModeTransition === 'to-food',
+                        'is-animating-to-culture': townModeTransition === 'to-culture'
+                      }"
+                    >
                     <div ref="townSvgHost" class="svg-map-inline"></div>
                     <div v-if="townSvgError" class="map-fallback map-fallback--error">
                       <p>{{ townSvgError }}</p>
                     </div>
                   </div>
+                  <div class="town-food-overlay" :class="{ 'is-visible': isFoodMode }">
+                    <div class="map-detail-card map-detail-card--food">
+                      <div class="map-detail-header">
+                        <h4>{{ formatTownLabel(foodPanelTown.name) }}</h4>
+                        <span class="map-detail-chip">镇区美食</span>
+                      </div>
+                      <div
+                        class="map-detail-media map-detail-media--click map-detail-media--food"
+                        @click="openImageDialog(foodPanelTown.image, foodPanelTown.featureTitle)"
+                      >
+                        <img
+                          :src="foodPanelTown.image"
+                          :alt="foodPanelTown.featureTitle || foodPanelTown.name"
+                        />
+                        <span class="map-detail-media-tip">点击查看大图</span>
+                      </div>
+                      <p v-if="foodPanelTown.featureTitle" class="map-detail-media-title">{{ foodPanelTown.featureTitle }}</p>
+                      <div class="town-feature-body town-feature-body--food">
+                        <div
+                          v-for="(section, index) in foodPanelTown.featurePreviewSections"
+                          :key="`food-${foodPanelTown.name}-section-${index}`"
+                          class="town-feature-section"
+                        >
+                          <h5>{{ section.title }}</h5>
+                          <p v-for="(line, lineIndex) in section.lines" :key="`food-${index}-${lineIndex}`">{{ line }}</p>
+                        </div>
+                        <p v-if="!foodPanelTown.featurePreviewSections.length" class="map-detail-description">
+                          {{ foodPanelTown.description }}
+                        </p>
+                      </div>
+                      <div class="town-feature-footer">
+                        <span v-if="townFeatureTruncated" class="town-feature-ellipsis">...</span>
+                        <span class="town-feature-hint">点击地图中的镇区查看美食详情</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
               </el-col>
-              <el-col :md="8" :sm="24">
-                <div class="map-detail-card map-detail-card--town">
+              <el-col :md="8" :sm="24" class="town-mode-col town-mode-col--info">
+                <div class="map-detail-card map-detail-card--town" :class="{ 'is-fade-out': isFoodMode }">
                   <div class="map-detail-header">
                     <h4>{{ formatTownLabel(activeTown.name) }}</h4>
                     <span class="map-detail-chip">镇区特色</span>
@@ -2095,7 +2435,11 @@ export default {
         top="4vh"
         append-to-body
       >
-        <div v-if="townDialogData" class="town-dialog">
+        <div
+          v-if="townDialogData"
+          class="town-dialog"
+          :class="{ 'is-food-dialog': townDialogData.contentType === 'food' }"
+        >
           <div class="town-dialog-hero">
             <div>
               <h4>{{ formatTownLabel(townDialogData.name) }}</h4>
@@ -2103,11 +2447,12 @@ export default {
                 {{ townDialogData.featureTitle }}
               </p>
             </div>
-            <span class="town-dialog-chip">镇区详情</span>
+            <span class="town-dialog-chip">{{ townDialogChipText }}</span>
           </div>
           <div class="town-dialog-grid">
             <div
               class="town-dialog-media"
+              :class="{ 'is-food-media': townDialogData.contentType === 'food' }"
               @click="openImageDialog(townDialogData.image, townDialogData.featureTitle)"
             >
               <img
@@ -2128,14 +2473,18 @@ export default {
                 }"
               >
                 <h5>{{ section.title }}</h5>
-                <ul v-if="isTownKeySection(section.title)">
-                  <li v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
+                <template v-if="isTownKeySection(section.title)">
+                  <ul>
+                    <li v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
+                      {{ line }}
+                    </li>
+                  </ul>
+                </template>
+                <template v-else>
+                  <p v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
                     {{ line }}
-                  </li>
-                </ul>
-                <p v-else v-for="(line, lineIndex) in section.lines" :key="`dialog-${index}-${lineIndex}`">
-                  {{ line }}
-                </p>
+                  </p>
+                </template>
               </div>
               <p v-if="!townDialogData.featureSections.length" class="map-detail-description">
                 {{ townDialogData.description }}
@@ -2153,14 +2502,18 @@ export default {
               }"
             >
               <h5>{{ section.title }}</h5>
-              <ul v-if="isTownKeySection(section.title)">
-                <li v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
+              <template v-if="isTownKeySection(section.title)">
+                <ul>
+                  <li v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
+                    {{ line }}
+                  </li>
+                </ul>
+              </template>
+              <template v-else>
+                <p v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
                   {{ line }}
-                </li>
-              </ul>
-              <p v-else v-for="(line, lineIndex) in section.lines" :key="`dialog-secondary-${index}-${lineIndex}`">
-                {{ line }}
-              </p>
+                </p>
+              </template>
             </div>
           </div>
         </div>
@@ -2752,6 +3105,8 @@ export default {
   background: transparent;
   border-radius: 0;
   overflow: visible;
+  --food-panel-width: 50%;
+  --food-panel-gap: 32px;
 }
 
 .svg-map {
@@ -2766,8 +3121,56 @@ export default {
 }
 
 .svg-map--large {
+  position: relative;
+  z-index: 16;
   padding: 8px;
   height: 100%;
+  width: 100%;
+  transition: transform 0.85s cubic-bezier(0.2, 1, 0.22, 1);
+  opacity: 1;
+}
+
+.svg-map--large.is-mode-food {
+  transform: translateX(calc(var(--food-panel-width) + var(--food-panel-gap)));
+}
+
+.svg-map--large.is-animating-to-food {
+  animation: townMapToFood 860ms cubic-bezier(0.14, 0.92, 0.2, 1) both;
+}
+
+.svg-map--large.is-animating-to-culture {
+  animation: townMapToCulture 860ms cubic-bezier(0.14, 0.92, 0.2, 1) both;
+  z-index: 20;
+}
+
+@keyframes townMapToFood {
+  0% {
+    transform: translateX(0) scale(1);
+  }
+  42% {
+    transform: translateX(calc(var(--food-panel-width) + var(--food-panel-gap) + 14px)) scale(0.99);
+  }
+  68% {
+    transform: translateX(calc(var(--food-panel-width) + var(--food-panel-gap) - 8px)) scale(1.014);
+  }
+  100% {
+    transform: translateX(calc(var(--food-panel-width) + var(--food-panel-gap))) scale(1);
+  }
+}
+
+@keyframes townMapToCulture {
+  0% {
+    transform: translateX(calc(var(--food-panel-width) + var(--food-panel-gap))) scale(1);
+  }
+  40% {
+    transform: translateX(-2.4%) scale(1.012);
+  }
+  70% {
+    transform: translateX(1.4%) scale(0.996);
+  }
+  100% {
+    transform: translateX(0) scale(1);
+  }
 }
 
 .svg-map-base,
@@ -2810,6 +3213,146 @@ export default {
   height: var(--town-panel-height);
 }
 
+.town-mode-col {
+  transition: opacity 0.45s ease, transform 0.72s cubic-bezier(0.2, 1, 0.22, 1);
+}
+
+.town-experience-row.is-food .town-mode-col--map {
+  opacity: 1;
+  transform: none;
+}
+
+.town-experience-row.is-food .town-mode-col--info {
+  opacity: 0;
+  transform: translateX(28px);
+  pointer-events: none;
+}
+
+.map-detail-card--town {
+  transition: opacity 0.45s ease, transform 0.72s cubic-bezier(0.2, 1, 0.22, 1);
+}
+
+.map-detail-card--town.is-fade-out {
+  opacity: 0;
+  transform: translateY(14px);
+}
+
+.town-food-overlay {
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: var(--food-panel-width);
+  z-index: 10;
+  visibility: hidden;
+  opacity: 0;
+  transform: translate3d(-28px, 18px, 0);
+  pointer-events: none;
+  transition: opacity 0.58s ease, transform 0.78s cubic-bezier(0.2, 1, 0.22, 1), visibility 0s linear 0.58s;
+  display: flex;
+}
+
+.town-food-overlay.is-visible {
+  visibility: visible;
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
+  pointer-events: auto;
+  transition: opacity 0.58s ease, transform 0.78s cubic-bezier(0.2, 1, 0.22, 1), visibility 0s linear 0s;
+}
+
+.map-detail-card--food {
+  width: 100%;
+  min-height: 100%;
+  height: auto;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(4px);
+  box-shadow: 0 16px 34px rgba(31, 56, 94, 0.18);
+}
+
+.town-feature-body--food {
+  max-height: none;
+  overflow: hidden;
+}
+
+.map-detail-media--food {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 14px;
+}
+
+.map-detail-media--food img {
+  width: auto;
+  height: auto;
+  max-width: min(100%, 300px);
+  max-height: 220px;
+  object-fit: contain;
+}
+
+.town-mode-toggle-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.town-mode-switch {
+  position: relative;
+  width: min(460px, 92vw);
+  height: 52px;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(31, 122, 109, 0.16), rgba(199, 90, 49, 0.2));
+  box-shadow: 0 10px 24px rgba(31, 56, 94, 0.16);
+  cursor: pointer;
+  overflow: hidden;
+  padding: 0;
+}
+
+.town-mode-track-label {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 14px;
+  font-weight: 600;
+  color: rgba(28, 44, 39, 0.78);
+  pointer-events: none;
+  user-select: none;
+}
+
+.town-mode-track-label--left {
+  left: 20px;
+}
+
+.town-mode-track-label--right {
+  right: 20px;
+}
+
+.town-mode-thumb {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: calc(50% - 6px);
+  height: calc(100% - 8px);
+  border-radius: 999px;
+  background: linear-gradient(135deg, #ffffff, #f6fdfb);
+  color: var(--teal);
+  font-size: 15px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.72s cubic-bezier(0.2, 1.25, 0.22, 1), box-shadow 0.2s ease;
+  box-shadow: 0 12px 24px rgba(31, 122, 109, 0.22);
+}
+
+.town-mode-switch.is-food .town-mode-thumb {
+  transform: translateX(100%);
+  color: var(--accent);
+  box-shadow: 0 12px 24px rgba(199, 90, 49, 0.24);
+}
+
 @media (max-width: 992px) {
   .map-overview-row .map-card,
   .map-overview-row .map-detail-card--overview,
@@ -2824,6 +3367,32 @@ export default {
   .town-experience-row .map-card--svg,
   .town-experience-row .map-detail-card--town {
     height: auto;
+  }
+
+  .town-food-overlay {
+    position: static;
+    width: 100%;
+    height: auto;
+    margin-top: 12px;
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .town-experience-row.is-food .town-mode-col--info {
+    opacity: 1;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  .map-detail-card--town.is-fade-out {
+    opacity: 1;
+    transform: none;
+  }
+
+  .svg-map--large.is-mode-food {
+    transform: none;
+    width: 100%;
   }
 
   .svg-map,
@@ -3225,6 +3794,16 @@ export default {
   background: rgba(31, 122, 109, 0.04);
 }
 
+.town-dialog-media.is-food-media {
+  width: fit-content;
+  max-width: 100%;
+  margin: 0 auto;
+  background: transparent;
+  padding: 8px;
+  border-radius: 14px;
+  box-shadow: 0 10px 24px rgba(31, 56, 94, 0.1);
+}
+
 .town-dialog-media:hover .map-detail-media-tip {
   opacity: 1;
   transform: translateY(0);
@@ -3237,6 +3816,39 @@ export default {
   max-height: 42vh;
   object-fit: contain;
   display: block;
+}
+
+.town-dialog.is-food-dialog .town-dialog-grid {
+  grid-template-columns: 1fr;
+  gap: 18px;
+}
+
+.town-dialog.is-food-dialog .town-dialog-content {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.town-dialog.is-food-dialog .town-dialog-secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-top: 4px;
+}
+
+.town-dialog.is-food-dialog .town-dialog-section {
+  min-height: 100%;
+  padding: 18px 20px;
+}
+
+.town-dialog.is-food-dialog .town-dialog-section h5 {
+  margin-bottom: 12px;
+  font-size: 15px;
+}
+
+.town-dialog.is-food-dialog .town-dialog-section p,
+.town-dialog.is-food-dialog .town-dialog-section ul li {
+  line-height: 1.8;
 }
 
 .town-dialog-section {
