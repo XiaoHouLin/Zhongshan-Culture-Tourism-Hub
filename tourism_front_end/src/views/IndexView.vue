@@ -87,10 +87,10 @@ export default {
         }
       ],
       carouselItems: [
-        { jpg: '/1.jpg', title: '岐江夜景' },
-        { jpg: '/2.jpg', title: '孙文西路骑楼' },
-        { jpg: '/3.jpg', title: '五桂山绿道' },
-        { jpg: '/4.jpg', title: '古镇灯饰' }
+        { jpg: '/index_scenic/CRall_20251009_120555433.jpg', title: '中山城市影像 1' },
+        { jpg: '/index_scenic/CRall_20251009_123128959.jpg', title: '中山城市影像 2' },
+        { jpg: '/index_scenic/MVIMG_20260217_183826.jpg', title: '中山城市影像 3' },
+        { jpg: '/index_scenic/MVIMG_20260217_184923.jpg', title: '中山城市影像 4' }
       ],
       cultureCards: [
         {
@@ -151,7 +151,7 @@ export default {
         description: '收藏景点、规划路线、加入文创清单，让每一次出发都更从容。'
       },
       logoInfo: {
-        url: '/zqxy.jpg'
+        url: '/Logo.png'
       },
       amapKey:
         (typeof window !== 'undefined' && window.AMAP_KEY) ||
@@ -2046,18 +2046,16 @@ export default {
             <div class="hero-media">
               <div class="hero-media-header">
                 <span class="hero-media-title">城市影像</span>
-                <span class="hero-media-subtitle">岐江夜景 · 骑楼街 · 五桂山</span>
               </div>
-              <el-carousel :interval="4500" arrow="always" height="520px" class="hero-carousel hero-carousel--top">
-                <el-carousel-item v-for="item in carouselItems" :key="item.jpg">
-                  <div class="carousel-content">
-                    <img :src="item.jpg" :alt="item.title" class="carousel-image" />
-                    <div class="carousel-caption">
-                      <span>{{ item.title }}</span>
+              <div class="hero-carousel-shell">
+                <el-carousel :interval="4500" arrow="always" height="100%" class="hero-carousel hero-carousel--top">
+                  <el-carousel-item v-for="item in carouselItems" :key="item.jpg">
+                    <div class="carousel-content">
+                      <img :src="item.jpg" :alt="item.title" class="carousel-image" />
                     </div>
-                  </div>
-                </el-carousel-item>
-              </el-carousel>
+                  </el-carousel-item>
+                </el-carousel>
+              </div>
             </div>
           </div>
         </div>
@@ -3996,24 +3994,45 @@ export default {
   margin-top: 0;
 }
 
+.hero-carousel-shell {
+  width: 100%;
+  aspect-ratio: 8 / 7;
+}
+
 .hero-carousel--top {
+  height: 100%;
   border-radius: 18px;
   overflow: hidden;
 }
 
+::v-deep .hero-carousel--top .el-carousel__container {
+  height: 100% !important;
+}
+
+::v-deep .hero-carousel--top .el-carousel__item {
+  height: 100%;
+}
+
 .carousel-content {
   position: relative;
+  width: 100%;
   height: 100%;
+  min-height: 100%;
   border-radius: 24px;
   overflow: hidden;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  justify-content: center;
+  background: #eef5f4;
 }
 
 .carousel-image {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
+  display: block;
+  transform: scale(1.06);
 }
 
 .carousel-caption {
@@ -4381,10 +4400,6 @@ export default {
   }
 
 @media (max-width: 900px) {
-  .hero-carousel--top {
-    height: 420px !important;
-  }
-
   .map-visual {
     height: 420px;
   }
@@ -4412,10 +4427,6 @@ export default {
   @media (max-width: 680px) {
   .hero-title {
     font-size: 32px;
-  }
-
-  .hero-carousel--top {
-    height: 320px !important;
   }
 
   .map-visual {
