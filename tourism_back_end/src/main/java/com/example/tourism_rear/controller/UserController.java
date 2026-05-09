@@ -122,6 +122,19 @@ public class UserController {
         if (current == null) {
             return Result.error("USER_NOT_FOUND");
         }
+        String targetUsername = editUser.getUsername() == null ? null : editUser.getUsername().trim();
+        if (!StringUtils.hasText(targetUsername)) {
+            return Result.error("USERNAME_REQUIRED");
+        }
+        if (targetUsername.length() < 5 || targetUsername.length() > 20) {
+            return Result.error("USERNAME_LENGTH_INVALID");
+        }
+        boolean usernameChanged = current.getUsername() == null
+                || !targetUsername.equals(current.getUsername());
+        if (usernameChanged && !userService.isUniqueUsername(targetUsername)) {
+            return Result.error("USERNAME_IN_USE");
+        }
+        editUser.setUsername(targetUsername);
         String targetEmail = editUser.getEmail();
         if (StringUtils.hasText(targetEmail) && !EMAIL_PATTERN.matcher(targetEmail).matches()) {
             return Result.error("EMAIL_FORMAT_INVALID");
@@ -147,9 +160,20 @@ public class UserController {
             }
             emailVerificationService.verifyRegisterCode(targetEmail, editUser.getNewEmailCode());
         }
+        boolean adminRequest = isAdmin(request);
         userService.updateUserInfo(editUser);
-        if (isAdmin(request)) {
+        if (adminRequest) {
             realtimeService.broadcastGlobalRefresh();
+        }
+        Integer requestUid = getUidFromRequest(request);
+        if (requestUid != null && requestUid.equals(editUser.getUid())) {
+            Map<String, Object> claims = new HashMap<>();
+            claims.put("uid", editUser.getUid());
+            claims.put("authority", userService.getAuthority(editUser.getUsername()));
+            claims.put("username", editUser.getUsername());
+            Map<String, Object> data = new HashMap<>();
+            data.put("token", Jwt.getToken(claims));
+            return Result.success(data);
         }
         return Result.success();
     }

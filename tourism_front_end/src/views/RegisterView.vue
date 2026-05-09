@@ -241,6 +241,10 @@ export default {
         const res = await apiRear.post('/register/email-code', {
           email: this.register.email,
           username: this.register.username
+        }, {
+          timeout: 30000,
+          skipAuth: true,
+          skipAuthRedirect: true
         });
         if (res.data.code === 1) {
           this.$message.success('验证码已发送，请查收邮箱');
@@ -428,17 +432,17 @@ export default {
     radial-gradient(circle at 12% 10%, rgba(31, 122, 109, 0.15), transparent 45%),
     radial-gradient(circle at 80% 15%, rgba(199, 90, 49, 0.15), transparent 50%),
     linear-gradient(135deg, #f5f7f4 0%, #eef5f7 55%, #ffffff 100%);
-  padding: 24px;
+  padding: 10px;
 }
 
 .auth-card {
-  width: 1000px;
+  width: 1100px;
   max-width: 100%;
   display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  grid-template-columns: 0.7fr 1.7fr;
   gap: 0;
   background: #ffffff;
-  border-radius: 24px;
+  border-radius: 20px;
   overflow: hidden;
   box-shadow: 0 20px 50px rgba(31, 56, 94, 0.18);
   animation: fadeInUp 0.6s ease both;
@@ -447,65 +451,68 @@ export default {
 .auth-aside {
   background: linear-gradient(135deg, rgba(31, 122, 109, 0.95), rgba(199, 90, 49, 0.88));
   color: #ffffff;
-  padding: 48px 40px;
+  padding: 28px 24px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
   justify-content: center;
 }
 
 .auth-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
 }
 
 .auth-aside h1 {
-  font-size: 24px;
+  font-size: 19px;
   margin: 0;
-  line-height: 1.4;
+  line-height: 1.35;
 }
 
 .auth-aside p {
   margin: 0;
   opacity: 0.9;
-  line-height: 1.6;
+  font-size: 13px;
+  line-height: 1.45;
 }
 
 .auth-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .auth-tags span {
   background: rgba(255, 255, 255, 0.2);
-  padding: 6px 12px;
+  padding: 3px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .auth-form {
-  padding: 40px 36px;
+  padding: 18px 28px 14px;
+  display: flex;
+  flex-direction: column;
 }
 
 .auth-form h2 {
-  margin: 0 0 8px;
-  font-size: 22px;
+  margin: 0 0 1px;
+  font-size: 19px;
   color: #1c2c27;
 }
 
 .form-subtitle {
-  margin: 0 0 20px;
+  margin: 0 0 8px;
   color: #5f6b66;
-  font-size: 14px;
+  font-size: 12px;
 }
 
 .form-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  column-gap: 20px;
-  row-gap: 10px;
+  column-gap: 16px;
+  row-gap: 0;
   align-items: start;
 }
 
@@ -514,25 +521,26 @@ export default {
 }
 
 .form-section {
-  margin-bottom: 16px;
+  margin-bottom: 2px;
 }
 
 .form-section-title {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 700;
   color: #1f2b2a;
-  margin: 8px 0 12px;
+  margin: 0 0 4px;
   padding-left: 4px;
   border-left: 3px solid #1f7a6d;
 }
 
 .demo-ruleForm .el-form-item {
-  margin-bottom: 14px;
+  margin-bottom: 4px;
 }
 
 .demo-ruleForm .el-form-item__label {
-  padding: 0 0 6px;
-  line-height: 1.2;
+  padding: 0;
+  line-height: 1;
+  font-size: 12px;
   color: #3b4a45;
   font-weight: 600;
 }
@@ -547,7 +555,7 @@ export default {
 .demo-ruleForm .el-radio-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: 6px;
 }
 
 .note {
@@ -584,20 +592,20 @@ export default {
 .captcha-body {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 6px;
 }
 
 .inline-captcha {
-  margin: 10px 0 6px;
+  margin: 2px 0;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 4px;
 }
 
 .captcha-tip {
   color: #5f6b66;
   margin: 0;
-  font-size: 12px;
+  font-size: 11px;
   text-align: center;
 }
 
@@ -605,34 +613,35 @@ export default {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 6px;
+  margin-top: 0;
 }
 
 .sex-group {
   display: flex;
-  gap: 10px;
+  gap: 8px;
 }
 
 .sex-group :deep(.el-radio-button__inner) {
-  border-radius: 12px;
-  padding: 10px 16px;
+  border-radius: 10px;
+  padding: 7px 14px;
   border: 1px solid rgba(31, 122, 109, 0.35);
   color: #1f7a6d;
+  font-size: 13px;
 }
 
 .sex-group :deep(.el-radio-button__orig-radio:checked + .el-radio-button__inner) {
   background: #1f7a6d;
   border-color: #1f7a6d;
   color: #ffffff;
-  box-shadow: 0 8px 16px rgba(31, 122, 109, 0.22);
+  box-shadow: 0 4px 10px rgba(31, 122, 109, 0.22);
 }
 
 .back-button {
   position: fixed;
-  top: 18px;
-  left: 18px;
-  width: 42px;
-  height: 42px;
+  top: 14px;
+  left: 14px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: none;
   background: #1f7a6d;
@@ -641,7 +650,7 @@ export default {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  box-shadow: 0 10px 20px rgba(31, 56, 94, 0.2);
+  box-shadow: 0 8px 16px rgba(31, 56, 94, 0.2);
   z-index: 2;
 }
 
@@ -682,11 +691,11 @@ export default {
 
 @media (max-width: 680px) {
   .auth-form {
-    padding: 32px 24px;
+    padding: 16px 14px;
   }
 
   .auth-aside {
-    padding: 32px 24px;
+    padding: 20px 16px;
   }
 }
 </style>

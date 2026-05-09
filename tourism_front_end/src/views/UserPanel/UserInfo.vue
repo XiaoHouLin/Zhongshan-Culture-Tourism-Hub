@@ -75,6 +75,85 @@ export default {
         callback();
       }
     };
+
+    const validateEditUsername = (rule, value, callback) => {
+      const username = (value || '').trim();
+      if (!username) {
+        callback(new Error('请输入用户名'));
+      } else if (username.length < 5 || username.length > 20) {
+        callback(new Error('用户名长度需为5-20位'));
+      } else {
+        callback();
+      }
+    };
+    const validateEditUsernameUnique = async (rule, value, callback) => {
+      const username = (value || '').trim();
+      const currentUsername = (this.userInfo && this.userInfo.username ? this.userInfo.username : '').trim();
+      if (!username || username.length < 5 || username.length > 20) {
+        callback();
+        return;
+      }
+      if (username === currentUsername) {
+        this.editUsernameUnique = true;
+        callback();
+        return;
+      }
+      this.editUsernameChecking = true;
+      try {
+        const response = await apiRear.post(`/isUnique/${encodeURIComponent(username)}`);
+        this.editUsernameUnique = response.data && response.data.code === 1;
+        if (this.editUsernameUnique) {
+          callback();
+        } else {
+          callback(new Error('用户名已重复'));
+        }
+      } catch (error) {
+        this.editUsernameUnique = false;
+        callback(new Error('无法校验用户名，请稍后再试'));
+      } finally {
+        this.editUsernameChecking = false;
+      }
+    };
+    void validateEditUsername;
+    void validateEditUsernameUnique;
+    const validateEditUsernameSafe = (rule, value, callback) => {
+      const username = (value || '').trim();
+      if (!username) {
+        callback(new Error('\u8bf7\u8f93\u5165\u7528\u6237\u540d'));
+      } else if (username.length < 5 || username.length > 20) {
+        callback(new Error('\u7528\u6237\u540d\u957f\u5ea6\u9700\u4e3a5-20\u4f4d'));
+      } else {
+        callback();
+      }
+    };
+    const validateEditUsernameUniqueSafe = async (rule, value, callback) => {
+      const username = (value || '').trim();
+      const currentUsername = (this.userInfo && this.userInfo.username ? this.userInfo.username : '').trim();
+      if (!username || username.length < 5 || username.length > 20) {
+        callback();
+        return;
+      }
+      if (username === currentUsername) {
+        this.editUsernameUnique = true;
+        callback();
+        return;
+      }
+      this.editUsernameChecking = true;
+      try {
+        const response = await apiRear.post(`/isUnique/${encodeURIComponent(username)}`);
+        this.editUsernameUnique = response.data && response.data.code === 1;
+        if (this.editUsernameUnique) {
+          callback();
+        } else {
+          callback(new Error('\u7528\u6237\u540d\u5df2\u91cd\u590d'));
+        }
+      } catch (error) {
+        this.editUsernameUnique = false;
+        callback(new Error('\u65e0\u6cd5\u6821\u9a8c\u7528\u6237\u540d\uff0c\u8bf7\u7a0d\u540e\u518d\u8bd5'));
+      } finally {
+        this.editUsernameChecking = false;
+      }
+    };
     return {
       token: sessionStorage.getItem('token') || '',
       loading: true,
@@ -221,6 +300,8 @@ export default {
         oldPassword: '',
         checkPassword: '',
       },
+      editUsernameUnique: true,
+      editUsernameChecking: false,
       emailVerify: {
         old: {
           captchaRequired: false,
@@ -238,6 +319,19 @@ export default {
       emailTimerOld: null,
       emailTimerNew: null,
       size: 'medium',
+      profileRules: {
+        username: [
+          {required: true, validator: validateEditUsernameSafe, trigger: 'blur'},
+          {validator: validateEditUsernameUniqueSafe, trigger: 'blur'}
+        ],
+        email: [{message: '请输入邮箱地址', trigger: 'blur'}, {
+          type: 'email',
+          message: '请输入正确的邮箱地址',
+          trigger: ['blur', 'change']
+        }],
+        cage: [{validator: validateOptionalAge, trigger: 'blur'}],
+        cphone: [{required: true, message: '请输入电话', validator: validateCphone, trigger: 'blur'}]
+      },
       rules: {
         username: [{required: true, message: '请输入用户名', validator: validateUsername, trigger: 'blur'}],
         email: [{message: '请输入邮箱地址', trigger: 'blur'}, {
@@ -301,13 +395,21 @@ export default {
     },
     isEditInvalid() {
       const emailPattern = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      const username = (this.edit.username || '').trim();
+      const usernameValid = username.length >= 5 && username.length <= 20;
       const emailValid = !this.edit.email || emailPattern.test(this.edit.email);
       const ageValid = this.edit.cage === '' || this.edit.cage === null || Number.isInteger(this.edit.cage);
       const codeValid = value => /^\d{6}$/.test(value || '');
       const emailVerifyValid = !this.emailChanged
         || ((this.needsOldEmailVerify ? codeValid(this.edit.oldEmailCode) : true)
           && (this.needsNewEmailVerify ? codeValid(this.edit.newEmailCode) : true));
-      return !this.edit.username || !this.edit.cphone || !emailValid || !ageValid || !emailVerifyValid;
+      return !usernameValid
+        || !this.edit.cphone
+        || !emailValid
+        || !ageValid
+        || !emailVerifyValid
+        || this.editUsernameChecking
+        || !this.editUsernameUnique;
     },
     isPasswordInvalid() {
       return !this.edit.oldPassword || !this.edit.newPassword || !this.edit.checkPassword ||
@@ -1045,6 +1147,15 @@ export default {
     onDialogClose() {
       document.removeEventListener('keydown', this.handleKeydown);
     },
+    handleEditUsernameInput() {
+      const currentUsername = (this.userInfo && this.userInfo.username ? this.userInfo.username : '').trim();
+      const nextUsername = (this.edit.username || '').trim();
+      this.editUsernameChecking = false;
+      this.editUsernameUnique = !nextUsername || nextUsername === currentUsername;
+      if (this.$refs.userRef) {
+        this.$refs.userRef.clearValidate('username');
+      }
+    },
     handleKeydown(event) {
       if (event.key === 'Escape' || event.key === 'Esc') {
         if (this.dialogEditInfo) {
@@ -1058,6 +1169,8 @@ export default {
       this.edit.password = '';
       this.edit.oldEmailCode = '';
       this.edit.newEmailCode = '';
+      this.editUsernameUnique = true;
+      this.editUsernameChecking = false;
       this.resetEmailVerification('all');
       this.dialogEditInfo = false;
     },
@@ -1143,12 +1256,19 @@ export default {
       }
     },
     async updateUserInfo() {
+      const valid = await new Promise(resolve => {
+        this.$refs.userRef.validate(resolve);
+      });
+      if (!valid) {
+        return;
+      }
       if (!this.edit.csex) {
         this.edit.csex = 'U';
       }
       if (!Number.isInteger(this.edit.cage)) {
         this.edit.cage = 0;
       }
+      this.edit.username = (this.edit.username || '').trim();
       if (this.emailChanged) {
         if (this.needsOldEmailVerify && !/^\d{6}$/.test(this.edit.oldEmailCode || '')) {
           this.$message.error('请填写旧邮箱验证码');
@@ -1162,6 +1282,14 @@ export default {
       try {
         const response = await apiRear.post('/userInfo/update', this.edit);
         if (response.data && response.data.code === 1) {
+          const newToken = response.data.data && response.data.data.token;
+          if (newToken) {
+            sessionStorage.setItem('token', newToken);
+            this.token = newToken;
+            if (this.$store) {
+              this.$store.commit('setToken', newToken);
+            }
+          }
           await this.fetchData();
           this.$message({
             type: 'success',
@@ -1200,6 +1328,18 @@ export default {
         UNAUTHORIZED: '登录信息已失效，请重新登录',
         FORBIDDEN: '无权限操作'
       };
+      mapping.USERNAME_REQUIRED = '璇疯緭鍏ョ敤鎴峰悕';
+      mapping.USERNAME_LENGTH_INVALID = '鐢ㄦ埛鍚嶉暱搴﹂渶涓?5-20 浣?';
+      mapping.USERNAME_IN_USE = '鐢ㄦ埛鍚嶅凡閲嶅';
+      if (code === 'USERNAME_REQUIRED') {
+        return '\u8bf7\u8f93\u5165\u7528\u6237\u540d';
+      }
+      if (code === 'USERNAME_LENGTH_INVALID') {
+        return '\u7528\u6237\u540d\u957f\u5ea6\u9700\u4e3a5-20\u4f4d';
+      }
+      if (code === 'USERNAME_IN_USE') {
+        return '\u7528\u6237\u540d\u5df2\u91cd\u590d';
+      }
       return mapping[code] || '';
     },
     resetEmailVerification(scope = 'all') {
@@ -1643,6 +1783,8 @@ export default {
         this.edit.password = '';
         this.edit.oldEmailCode = '';
         this.edit.newEmailCode = '';
+        this.editUsernameUnique = true;
+        this.editUsernameChecking = false;
         this.loading = false;
       }).catch(err => {
         console.log(err);
@@ -2597,9 +2739,9 @@ export default {
       @open="onDialogOpen"
       @close="onDialogClose">
       <div class="edit-grid">
-        <el-form ref="userRef" :model="edit" :rules="rules" class="edit-form">
+        <el-form ref="userRef" :model="edit" :rules="profileRules" class="edit-form">
           <el-form-item label="用户名" prop="username" :label-width="searchLabelWidth" class="strong marginWidth">
-            <el-input v-model="edit.username" autocomplete="off" suffix-icon="el-icon-notebook-2"
+            <el-input v-model="edit.username" autocomplete="off" suffix-icon="el-icon-notebook-2" @input="handleEditUsernameInput"
                       placeholder="请输入内容"></el-input>
           </el-form-item>
           <el-form-item label="姓名" prop="cname" :label-width="searchLabelWidth" class="strong marginWidth">

@@ -188,6 +188,7 @@ export default {
           ? {username: this.identifier, email: this.email}
           : {email: this.email};
         const res = await apiRear.post('/password-reset/send-code', payload, {
+          timeout: 30000,
           skipAuth: true,
           skipAuthRedirect: true
         });
