@@ -1,9 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<project version="4">
-  <component name="SqlDialectMappings">
-    <file url="file://$PROJECT_DIR$/tourism_back_end/src/main/resources/sql/alter_order_add_pickup_info.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/tourism_back_end/src/main/resources/sql/alter_order_add_status.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/tourism_back_end/src/main/resources/sql/message_center.sql" dialect="MySQL" />
-    <file url="file://$PROJECT_DIR$/tourism_back_end/src/main/resources/sql/seed_cultural_products.sql" dialect="MySQL" />
-  </component>
-</project>
