@@ -143,9 +143,12 @@ export default {
   },
   computed: {
     isEditInvalid() {
-      return !this.changeUser.username ||
-          !this.changeUser.cno || !this.changeUser.csex ||
+      const base = !this.changeUser.username ||
           !this.changeUser.cphone || !this.changeUser.authority;
+      if (this.dialogTitle === '添加用户') {
+        return base;
+      }
+      return base || !this.changeUser.cno;
     }
   },
   methods: {
@@ -216,7 +219,8 @@ export default {
     },
     openAdd() {
       this.dialogTitle = '添加用户';
-      this.changeUser = {balance: ''};
+      this.changeUser = {balance: '', csex: 'U'};
+      this.rules.cno = [{required: false}];
       this.dialogUpdateAddUsersVisible = true;
     },
     onDialogOpen() {
@@ -527,7 +531,7 @@ export default {
                 <el-radio-group v-model="search.csex" style="padding-right: 71px">
                   <el-radio-button label="F" border>男</el-radio-button>
                   <el-radio-button label="M" border>女</el-radio-button>
-                  <el-radio-button label="U" border disabled>其他</el-radio-button>
+                  <el-radio-button label="U" border>不愿透露</el-radio-button>
                 </el-radio-group>
                 <el-button size="mini" type="danger" icon="el-icon-delete" circle @click="resetCsex"></el-button>
               </el-form-item>
@@ -580,11 +584,14 @@ export default {
         <div style="display: flex">
           <div style="width: 50%">
             <el-form ref="userRef" :model="changeUser" :rules="rules" style="width: 400px">
-              <el-form-item label="顾客编号" prop="cno" :label-width="searchLabelWidth" class="strong marginWidth">
+              <el-form-item v-if="dialogTitle !== '添加用户'" label="顾客编号" prop="cno" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="changeUser.cno" autocomplete="off" suffix-icon="el-icon-tickets"
                           placeholder="请输入内容"
                           disabled
                 ></el-input>
+              </el-form-item>
+              <el-form-item v-else label="顾客编号" :label-width="searchLabelWidth" class="strong marginWidth">
+                <el-input placeholder="系统自动生成" disabled suffix-icon="el-icon-tickets"></el-input>
               </el-form-item>
               <el-form-item label="用户名" prop="username" :label-width="searchLabelWidth" class="strong marginWidth">
                 <el-input v-model="changeUser.username" autocomplete="off" suffix-icon="el-icon-notebook-2"
@@ -620,10 +627,10 @@ export default {
                 <el-radio-group v-model="changeUser.csex" style=";height: 40px;">
                   <el-radio-button label="F" border>男</el-radio-button>
                   <el-radio-button label="M" border>女</el-radio-button>
-                  <el-radio-button label="U" border disabled>其他</el-radio-button>
+                  <el-radio-button label="U" border>不愿透露</el-radio-button>
                 </el-radio-group>
               </el-form-item>
-              <el-form-item label="权限" :label-width="searchLabelWidth" class="strong marginWidth">
+              <el-form-item label="权限" :label-width="searchLabelWidth" class="strong marginWidth" required>
                 <el-radio-group v-model="changeUser.authority" style="padding-right: 15px">
                   <el-radio-button label="1" border>管理员</el-radio-button>
                   <el-radio-button label="3" border>顾客</el-radio-button>
@@ -679,7 +686,7 @@ export default {
                 <span class="strong" :style="{color: dangerColor}"> 📧用户名唯一，⚠️不可重复</span>
                 。若添加或修改用户失败，请检查用户名是否已存在🔍。</p>
               <p class="strong">5. 📞电话默认+86，仅支持11位手机号。</p>
-              <p class="strong">6. 📍地址需详细填写，如：广东省肇庆市端州区肇庆学院🏢。可以使用英文🌐。</p>
+              <p class="strong">6. 📍地址需详细填写，如：XX省XX市XX区XX社区XX号🏢。可以使用英文🌐。</p>
               <p class="strong">8. 🔖除顾客编号，用户名，性别，权限必需以外，可填null💼，邮箱按CNO-NULL格式填写📧。</p>
               <p class="strong">9.
                 <span class="strong" :style="{color: dangerColor}">🛠️管理员也属于顾客范畴👥</span>

@@ -35,7 +35,7 @@ export default {
       needCaptcha: false,
       captchaKey: 0,
       captchaLoading: false,
-      url: '/zqxy.jpg',
+      url: '/Logo.png',
       isLoading: false
     };
   },

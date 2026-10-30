@@ -124,7 +124,7 @@ export default {
           {pattern: /^\d{6}$/, message: '验证码为6位数字', trigger: ['blur', 'change']}
         ]
       },
-      url: '/zqxy.jpg',
+      url: '/Logo.png',
       sex: null,
     };
   },

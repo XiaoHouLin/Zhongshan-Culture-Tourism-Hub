@@ -33,7 +33,7 @@ export default {
       captchaPassed: false,
       captchaKey: 0,
       emailDialogVisible: false,
-      url: '/zqxy.jpg'
+      url: '/Logo.png'
     };
   },
   computed: {
@@ -324,12 +324,12 @@ export default {
         <p class="form-subtitle">请输入用户名或邮箱，验证后重置密码。</p>
 
         <div v-if="step === 'identify'">
-          <el-form label-position="top" class="demo-ruleForm">
+          <el-form label-position="top" class="demo-ruleForm" @submit.native.prevent="lookupAccount">
             <el-form-item label="用户名或邮箱" class="strong">
               <el-input v-model="identifier" placeholder="请输入用户名或邮箱"></el-input>
             </el-form-item>
-            <el-button type="primary" style="width: 100%;" class="strong"
-                       :loading="isLoading" @click="lookupAccount">
+            <el-button type="primary" style="width: 100%;" class="strong" native-type="submit"
+                       :loading="isLoading">
               下一步
             </el-button>
           </el-form>
