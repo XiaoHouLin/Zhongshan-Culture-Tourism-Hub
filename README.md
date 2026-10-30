@@ -589,9 +589,11 @@ graduation_project/
 
 ---
 
-## 📄 License
+## 📄 Copyright
 
-本项目采用 [MIT License](./LICENSE)。
+Copyright © 2026 BOCBT. All rights reserved.
+
+本项目仅个人使用，未经书面许可，不得复制、修改、分发或用于商业用途。
 
 ---
 
