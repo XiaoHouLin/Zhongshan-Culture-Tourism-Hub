@@ -1,13 +1,69 @@
-# 🏛️ 中山市城市文化旅游特色展示系统
+# 🏛️ Zhongshan Culture & Tourism Hub
 
-> 一个集城市文旅宣传、文创商城、AI 智能导览于一体的全栈 Web 应用，前后端分离架构，为中山市文旅数字化提供完整解决方案。
+> 中山市城市文化旅游特色展示系统——一个集城市文旅宣传、文创商城、AI 智能导览于一体的全栈 Web 应用。
 
 ![系统首页](./tourism_front_end/docs/展示页.png)
 
 ---
 
+## 🚀 快速启动
+
+### 1. 克隆项目
+
+```bash
+git clone https://github.com/XiaoHouLin/graduation_project.git
+cd graduation_project
+```
+
+### 2. 初始化数据库
+
+```bash
+# 登录 MySQL，创建数据库并导入表结构
+mysql -u root -p
+```
+
+```sql
+CREATE DATABASE tourism DEFAULT CHARACTER SET utf8mb4;
+USE tourism;
+SOURCE tourism.sql;
+```
+
+### 3. 配置敏感信息
+
+复制配置模板并填写真实值：
+
+```bash
+cp config/application-secrets.example.yml config/application-secrets.yml
+```
+
+编辑 `config/application-secrets.yml`，填入通义千问 API Key。
+
+其余配置（数据库、邮箱等）可通过环境变量或直接修改 `application.yml`。
+
+### 4. 启动后端
+
+```bash
+cd tourism_back_end
+./mvnw spring-boot:run
+```
+
+后端默认运行在 `http://localhost:8080`。
+
+### 5. 启动前端
+
+```bash
+cd tourism_front_end
+npm install
+npm run serve
+```
+
+前端默认运行在 `http://localhost:7070`。浏览器打开该地址即可体验系统。
+
+---
+
 ## 📑 目录
 
+- [快速启动](#-快速启动)
 - [项目简介](#-项目简介)
 - [技术栈](#-技术栈)
 - [系统架构](#-系统架构)
@@ -17,7 +73,6 @@
 - [数据库设计](#-数据库设计)
 - [API 接口概览](#-api-接口概览)
 - [环境要求](#-环境要求)
-- [快速启动](#-快速启动)
 - [配置说明](#-配置说明)
 - [项目截图](#-项目截图)
 
@@ -500,64 +555,6 @@ graduation_project/
 
 ---
 
-## 🚀 快速启动
-
-### 1. 克隆项目
-
-```bash
-git clone https://github.com/XiaoHouLin/graduation_project.git
-cd graduation_project
-```
-
-### 2. 初始化数据库
-
-```bash
-# 登录 MySQL，创建数据库并导入表结构
-mysql -u root -p
-```
-
-```sql
-CREATE DATABASE tourism DEFAULT CHARACTER SET utf8mb4;
-USE tourism;
-SOURCE tourism.sql;
-```
-
-### 3. 配置敏感信息
-
-复制配置模板并填写真实值：
-
-```bash
-cp config/application-secrets.example.yml config/application-secrets.yml
-```
-
-编辑 `config/application-secrets.yml`，填入通义千问 API Key。  
-其余配置（数据库、邮箱等）可通过环境变量或直接修改 `application.yml`。
-
-### 4. 启动后端
-
-```bash
-cd tourism_back_end
-./mvnw spring-boot:run
-```
-
-后端默认运行在 `http://localhost:8080`
-
-### 5. 启动前端
-
-```bash
-cd tourism_front_end
-npm install
-npm run serve
-```
-
-前端默认运行在 `http://localhost:7070`
-
-### 6. 访问系统
-
-浏览器打开 `http://localhost:7070` 即可体验完整系统。
-
----
-
 ## ⚙️ 配置说明
 
 ### 环境变量配置（推荐）
@@ -594,10 +591,8 @@ npm run serve
 
 ## 📄 License
 
-本项目为毕业设计作品，仅供学习交流使用。
+本项目采用 [MIT License](./LICENSE)。
 
 ---
 
-<p align="center">
-  <b>⭐ 如果觉得项目不错，欢迎 Star 支持！</b>
-</p>
+
